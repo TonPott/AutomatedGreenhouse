@@ -1,3 +1,6 @@
+Not working right now!!
+
+
 Dependencies:
 - WiFiNINA 2.0.1 https://docs.arduino.cc/libraries/wifinina/
 - FlashStorage_SAMD 1.3.2 https://github.com/khoih-prog/FlashStorage_SAMD?tab=readme-ov-file#contributions-and-thanks
