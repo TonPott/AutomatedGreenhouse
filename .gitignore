@@ -2,3 +2,5 @@ Credentials.*
 MyNotes.*
 *.zip
 build/
+/PowerShellPath
+*.FCBak

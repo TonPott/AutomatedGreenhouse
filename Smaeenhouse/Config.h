@@ -1,23 +1,60 @@
 #pragma once
 
-// -------- Pins --------
-#define PIN_SHT_ALERT      7
-#define PIN_FAN_SWITCH     2
-#define PIN_FAN_TACH       A1
+#include <Arduino.h>
 
-#define PIN_LIGHT_PWM      4
-#define PIN_LIGHT_POWER    3
+// Pin mapping (Arduino Nano 33 IoT)
+// Tach input is conditioned to 3.3V logic via documented 2N3904 stage.
+// Light PWM drives the documented RC + PC817 dim path; light power pin drives the relay module.
+constexpr uint8_t PIN_SHT_ALERT = 7;
+constexpr uint8_t PIN_RTC_ALARM = 10;
+constexpr uint8_t PIN_FAN_SWITCH = 2;
+constexpr uint8_t PIN_FAN_TACH = A1;
+constexpr uint8_t PIN_LIGHT_PWM = 4;
+constexpr uint8_t PIN_LIGHT_POWER = 3;
+constexpr uint8_t PIN_SOIL_SENSOR = A0;
 
-#define PIN_SOIL_SENSOR    A0
+// Runtime timings
+constexpr uint32_t SOIL_PUBLISH_INTERVAL_MS = 10000UL;
+constexpr uint32_t TEMP_HUM_PUBLISH_INTERVAL_MS = 60000UL;
+constexpr uint32_t FAN_RPM_PUBLISH_INTERVAL_MS = 30000UL;
+constexpr uint32_t SHT_STATUS_POLL_INTERVAL_MS = 5000UL;
+constexpr uint32_t WIFI_RECONNECT_INTERVAL_MS = 10000UL;
+constexpr uint32_t NTP_RETRY_INTERVAL_MS = 60000UL;
+constexpr uint32_t MQTT_FALLBACK_TIMEOUT_MS = 600000UL;  // 10 minutes
+constexpr uint32_t NTP_RESYNC_INTERVAL_MS = 86400000UL;  // 24 hours
 
-// -------- Timing --------
-#define TEMP_PUBLISH_INTERVAL_MS   60000UL
-#define SOIL_PUBLISH_INTERVAL_MS   1800000UL
-#define FAN_RPM_INTERVAL_MS        30000UL
+// Light PWM behavior
+constexpr uint8_t PWM_FULL_ON = 0;
+constexpr uint8_t PWM_DARKEST_STABLE = 120;
+constexpr uint8_t PWM_OFF_THRESHOLD = 160;
+constexpr uint8_t PWM_SIGNAL_OFF = 255;
 
-// -------- Light PWM --------
-#define PWM_MIN_ACTIVE     0
-#define PWM_MAX_ACTIVE     120
-#define PWM_OFF_THRESHOLD  160
-#define DIM_STEP           5
-#define DIM_INTERVAL_MS    100
+// WINGONEER Tiny DS3231 AT24C32 module
+constexpr uint8_t RTC_EEPROM_I2C_ADDRESS = 0x57;
+constexpr uint16_t RTC_EEPROM_PAGE_SIZE = 32;
+constexpr uint16_t RTC_EEPROM_SIZE_BYTES = 4096;
+constexpr uint32_t CONFIG_EEPROM_BASE_ADDRESS = 0;
+
+// Persistent configuration defaults
+constexpr uint16_t CONFIG_SCHEMA_VERSION = 2;
+
+constexpr float DEFAULT_TEMP_HIGH_SET = 30.0f;
+constexpr float DEFAULT_TEMP_HIGH_CLEAR = 28.0f;
+constexpr float DEFAULT_TEMP_LOW_SET = 18.0f;
+constexpr float DEFAULT_TEMP_LOW_CLEAR = 20.0f;
+
+constexpr float DEFAULT_HUM_HIGH_SET = 85.0f;
+constexpr float DEFAULT_HUM_HIGH_CLEAR = 80.0f;
+constexpr float DEFAULT_HUM_LOW_SET = 35.0f;
+constexpr float DEFAULT_HUM_LOW_CLEAR = 40.0f;
+
+constexpr uint16_t DEFAULT_LIGHT_ON_TIME_MINUTES = 8 * 60;
+constexpr uint16_t DEFAULT_LIGHT_OFF_TIME_MINUTES = 20 * 60;
+constexpr uint16_t DEFAULT_LIGHT_DIM_MINUTES = 30;
+
+constexpr bool DEFAULT_FAN_AUTO_MODE = true;
+constexpr bool DEFAULT_LIGHT_AUTO_MODE = true;
+
+constexpr int16_t DEFAULT_SOIL_AIR = 3000;
+constexpr int16_t DEFAULT_SOIL_WATER = 1500;
+constexpr int16_t DEFAULT_SOIL_DEPTH_MM = 50;

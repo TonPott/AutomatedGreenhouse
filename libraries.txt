@@ -1,0 +1,35 @@
+Installiere diese Bibliotheken in der Arduino IDE, bevor du das Projekt kompilierst.
+
+## Kernbibliotheken / Abhängigkeiten
+
+- Sensirion Core https://github.com/Sensirion/arduino-core/
+- Sensirion arduino-i2c-sht3x https://github.com/Sensirion/arduino-i2c-sht3x
+- RTClib https://github.com/adafruit/RTClib
+- WiFiNINA https://docs.arduino.cc/libraries/wifinina/
+- arduino-home-assistant by Dawid Chyrzynski https://github.com/dawidchyrzynski/arduino-home-assistant
+
+## Zusätzliche Bibliothek für externe Persistenz
+
+- JC_EEPROM by Jack Christensen https://github.com/JChristensen/JC_EEPROM
+  - Zugriff auf das externe **AT24C32-EEPROM** des
+    WINGONEER Tiny DS3231 AT24C32 I2C Moduls.
+  - Für das Projekt ist diese Bibliothek fest vorgesehen.
+- Streaming by Mikal Hart / Janelia https://github.com/janelia-arduino/Streaming
+  - Wird von **JC_EEPROM** benötigt.
+
+## Bewusst nicht mehr verwendet
+
+- SAMD_SafeFlashStorage
+  - Persistenz erfolgt nicht mehr im internen Flash des Nano 33 IoT.
+
+## Hinweise
+
+- `Credentials.h` lokal aus `Credentials.example.h` erzeugen
+- `Credentials.h` nicht committen
+- Prüfe bei Änderungen an der RTC die Verfügbarkeit der in RTClib benötigten
+  DS3231-Alarmfunktionen:
+  - `writeSqwPinMode(...)`
+  - `setAlarm1(...)`
+  - `setAlarm2(...)`
+  - `alarmFired(...)`
+  - `clearAlarm(...)`
