@@ -20,6 +20,19 @@ void LightController::begin() {
 
   activeDimJob_.active = false;
   applyOutput();
+
+  Serial.print(F("LightController init: power pin "));
+  Serial.print(PIN_LIGHT_POWER);
+  Serial.print(F("="));
+  Serial.print(lastAppliedPowerPin_ ? F("HIGH") : F("LOW"));
+  Serial.print(F(", pwm pin "));
+  Serial.print(PIN_LIGHT_PWM);
+  Serial.print(F("="));
+  Serial.print(lastAppliedPwm_);
+  Serial.print(F(", brightness="));
+  Serial.print(currentBrightnessPercent_);
+  Serial.print(F("%, hardPowerOff="));
+  Serial.println(hardPowerOffActive_ ? F("ON") : F("OFF"));
 }
 
 void LightController::update(uint32_t nowMs) {

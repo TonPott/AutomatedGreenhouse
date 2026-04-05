@@ -24,6 +24,13 @@
 void NetworkManager::begin() {
   lastConnectionOkMs_ = millis();
   ensureWifiConnected(0, true);
+
+  Serial.print(F("NetworkManager init: wifiConnected="));
+  Serial.print(wifiConnected_ ? F("YES") : F("NO"));
+  Serial.print(F(", mqttConnected="));
+  Serial.print(mqttConnected_ ? F("YES") : F("NO"));
+  Serial.print(F(", fallbackActive="));
+  Serial.println(fallbackActive_ ? F("YES") : F("NO"));
 }
 
 void NetworkManager::update(uint32_t nowMs) {

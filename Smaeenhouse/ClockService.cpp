@@ -49,6 +49,23 @@ void ClockService::begin() {
 
   const DateTime current = rtc_.now();
   timeValid_ = current.year() >= 2024 && !rtc_.lostPower();
+
+  Serial.print(F("ClockService init: rtcAvailable="));
+  Serial.print(rtcAvailable_ ? F("YES") : F("NO"));
+  Serial.print(F(", timeValid="));
+  Serial.print(timeValid_ ? F("YES") : F("NO"));
+  Serial.print(F(", now="));
+  Serial.print(current.year());
+  Serial.print(F("-"));
+  Serial.print(current.month());
+  Serial.print(F("-"));
+  Serial.print(current.day());
+  Serial.print(F(" "));
+  Serial.print(current.hour());
+  Serial.print(F(":"));
+  Serial.print(current.minute());
+  Serial.print(F(":"));
+  Serial.println(current.second());
 }
 
 void ClockService::update(uint32_t nowMs) {
@@ -74,17 +91,20 @@ bool ClockService::syncFromNTP() {
   lastSyncAttemptMs_ = millis();
 
   if (!rtcAvailable_ || WiFi.status() != WL_CONNECTED) {
+    Serial.println(F("ClockService NTP sync skipped: RTC unavailable or WiFi not connected."));
     return false;
   }
 
   uint32_t unixUtc = 0;
   if (!fetchNtpUnixTime(unixUtc)) {
+    Serial.println(F("ClockService NTP sync failed: no valid NTP response."));
     return false;
   }
 
   const int32_t offsetSeconds = static_cast<int32_t>(UTC_OFFSET_SECONDS) + static_cast<int32_t>(DST_OFFSET_SECONDS);
   const int64_t localEpochSigned = static_cast<int64_t>(unixUtc) + static_cast<int64_t>(offsetSeconds);
   if (localEpochSigned <= 0) {
+    Serial.println(F("ClockService NTP sync failed: invalid local epoch."));
     return false;
   }
 
@@ -96,6 +116,8 @@ bool ClockService::syncFromNTP() {
   if (alarmsConfigured_) {
     configureScheduleAlarms(lightOnMinutes_, lightOffMinutes_);
   }
+
+  Serial.println(F("ClockService NTP sync successful."));
 
   return true;
 }

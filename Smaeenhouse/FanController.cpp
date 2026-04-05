@@ -19,6 +19,17 @@ void FanController::begin() {
   }
 
   lastRpmCalcMs_ = millis();
+
+  Serial.print(F("FanController init: switch pin "));
+  Serial.print(PIN_FAN_SWITCH);
+  Serial.print(F("=LOW, autoMode="));
+  Serial.print(autoMode_ ? F("ON") : F("OFF"));
+  Serial.print(F(", manualState="));
+  Serial.print(manualState_ ? F("ON") : F("OFF"));
+  Serial.print(F(", effectiveState="));
+  Serial.print(effectiveState_ ? F("ON") : F("OFF"));
+  Serial.print(F(", rpm="));
+  Serial.println(rpm_);
 }
 
 void FanController::update(uint32_t nowMs) {

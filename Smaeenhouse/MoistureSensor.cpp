@@ -9,6 +9,17 @@ void MoistureSensor::begin(int air, int water, int depthMm) {
   setCalibration(air, water, depthMm);
   sampleNow();
   lastReadMs_ = millis();
+
+  Serial.print(F("MoistureSensor init: raw="));
+  Serial.print(lastRaw_);
+  Serial.print(F(", percent="));
+  Serial.print(lastPercent_);
+  Serial.print(F(", air="));
+  Serial.print(soilAir_);
+  Serial.print(F(", water="));
+  Serial.print(soilWater_);
+  Serial.print(F(", depthMm="));
+  Serial.println(soilDepthMm_);
 }
 
 void MoistureSensor::update(uint32_t nowMs) {

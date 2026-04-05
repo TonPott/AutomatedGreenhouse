@@ -118,6 +118,7 @@ private:
   HAButton startHaDimButton_;
 
   bool wasMqttConnected_ = false;
+  bool wasWifiConnected_ = false;
 
   uint32_t lastTempHumPublishMs_ = 0;
   uint32_t lastSoilPublishMs_ = 0;

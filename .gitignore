@@ -1,6 +1,7 @@
-Credentials.*
-MyNotes.*
+*Credentials.h
+*MyNotes.*
 *.zip
 build/
 /PowerShellPath
 *.FCBak
+Smaeenhouse/Credentials.h

@@ -29,6 +29,7 @@ HAInterface ha(fan, light, moisture, clockService, sht, configManager, cfg, netw
 
 bool fallbackWasActive = false;
 bool lastKnownAutoMode = DEFAULT_LIGHT_AUTO_MODE;
+bool lastKnownWifiConnected = false;
 uint32_t lastShtStatusPollMs = 0;
 
 bool minuteIsInsideOnWindow(uint16_t minuteNow, uint16_t onMinute, uint16_t offMinute) {
@@ -78,15 +79,38 @@ void onRtcAlarmInterrupt() {
 
 void setup() {
   Serial.begin(115200);
+  
   Wire.begin();
 
   configManager.begin(Wire);
   cfg = configManager.current();
+  Serial.print(F("PersistentConfig init: storageAvailable="));
+  Serial.print(configManager.isStorageAvailable() ? F("YES") : F("NO"));
+  Serial.print(F(", lightOnMinutes="));
+  Serial.print(cfg.lightOnTimeMinutes);
+  Serial.print(F(", lightOffMinutes="));
+  Serial.print(cfg.lightOffTimeMinutes);
+  Serial.print(F(", dimMinutes="));
+  Serial.print(cfg.defaultLightDimMinutes);
+  Serial.print(F(", fanAutoMode="));
+  Serial.print(cfg.fanAutoMode ? F("ON") : F("OFF"));
+  Serial.print(F(", lightAutoMode="));
+  Serial.println(cfg.lightAutoMode ? F("ON") : F("OFF"));
 
   sht.begin();
   sht.startPeriodicMeasurement(REPEATABILITY_MEDIUM,
                                MPS_ONE_PER_SECOND);
   sht.applyThresholdConfig(cfg);
+  float initialTemperature = NAN;
+  float initialHumidity = NAN;
+  if (sht.readMeasurement(initialTemperature, initialHumidity)) {
+    Serial.print(F("SHT init: temperature="));
+    Serial.print(initialTemperature, 2);
+    Serial.print(F(" C, humidity="));
+    Serial.println(initialHumidity, 1);
+  } else {
+    Serial.println(F("SHT init: no initial measurement available."));
+  }
 
   fan.begin();
   fan.setAutoMode(cfg.fanAutoMode);
@@ -98,9 +122,12 @@ void setup() {
   moisture.begin(cfg.soilAir, cfg.soilWater, cfg.soilDepthMm);
 
   clockService.begin();
-  clockService.configureScheduleAlarms(cfg.lightOnTimeMinutes, cfg.lightOffTimeMinutes);
+  const bool alarmsConfigured = clockService.configureScheduleAlarms(cfg.lightOnTimeMinutes, cfg.lightOffTimeMinutes);
+  Serial.print(F("ClockService alarm config: success="));
+  Serial.println(alarmsConfigured ? F("YES") : F("NO"));
 
   networkManager.begin();
+  lastKnownWifiConnected = networkManager.isWifiConnected();
   ha.begin();
 
   // First boot sync attempt; regular retry is handled in ClockService::update().
@@ -134,6 +161,20 @@ void loop() {
   const uint32_t nowMs = millis();
 
   networkManager.update(nowMs);
+  const bool wifiConnectedNow = networkManager.isWifiConnected();
+  if (wifiConnectedNow != lastKnownWifiConnected) {
+    if (wifiConnectedNow) {
+      Serial.println(F("Main loop detected WiFi connection."));
+      if (!clockService.isTimeValid()) {
+        clockService.syncFromNTP();
+      }
+    } else {
+      Serial.println(F("Main loop detected WiFi disconnect."));
+    }
+
+    lastKnownWifiConnected = wifiConnectedNow;
+  }
+
   clockService.update(nowMs);
 
   bool shouldDecodeShtStatus = false;
@@ -205,8 +246,3 @@ void loop() {
   moisture.update(nowMs);
   ha.update(nowMs);
 }
-
-
-
-
-

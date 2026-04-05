@@ -83,7 +83,7 @@ HAInterface::HAInterface(FanController& fanController,
       configData_(configData),
       networkManager_(networkManager),
       device_(DEVICE_ID),
-      mqtt_(networkClient_, device_),
+      mqtt_(networkClient_, device_, 40),
       temperatureSensor_("temperature"),
       humiditySensor_("humidity"),
       soilPercentSensor_("soil_moisture_percent"),
@@ -94,15 +94,15 @@ HAInterface::HAInterface(FanController& fanController,
       lightAutoModeSwitch_("light_auto_mode"),
       lightHardPowerOffSwitch_("light_hard_power_off"),
       lightFallbackUseAutoModeSwitch_("light_fallback_use_auto_mode"),
-      growLight_("grow_light"),
-      tempHighSetNumber_("temp_high_set"),
-      tempHighClearNumber_("temp_high_clear"),
-      tempLowSetNumber_("temp_low_set"),
-      tempLowClearNumber_("temp_low_clear"),
-      humHighSetNumber_("hum_high_set"),
-      humHighClearNumber_("hum_high_clear"),
-      humLowSetNumber_("hum_low_set"),
-      humLowClearNumber_("hum_low_clear"),
+      growLight_("grow_light", HALight::BrightnessFeature),
+      tempHighSetNumber_("temp_high_set", HANumber::PrecisionP1),
+      tempHighClearNumber_("temp_high_clear", HANumber::PrecisionP1),
+      tempLowSetNumber_("temp_low_set", HANumber::PrecisionP1),
+      tempLowClearNumber_("temp_low_clear", HANumber::PrecisionP1),
+      humHighSetNumber_("hum_high_set", HANumber::PrecisionP1),
+      humHighClearNumber_("hum_high_clear", HANumber::PrecisionP1),
+      humLowSetNumber_("hum_low_set", HANumber::PrecisionP1),
+      humLowClearNumber_("hum_low_clear", HANumber::PrecisionP1),
       lightOnTimeNumber_("light_on_time_minutes"),
       lightOffTimeNumber_("light_off_time_minutes"),
       defaultLightDimMinutesNumber_("light_dim_minutes"),
@@ -145,25 +145,98 @@ void HAInterface::begin() {
   growLight_.setBrightnessScale(100);
 
   tempHighSetNumber_.setName("Temp High Set");
+  tempHighSetNumber_.setUnitOfMeasurement("C");
+  tempHighSetNumber_.setMin(-40.0f);
+  tempHighSetNumber_.setMax(125.0f);
+  tempHighSetNumber_.setStep(0.1f);
+
   tempHighClearNumber_.setName("Temp High Clear");
+  tempHighClearNumber_.setUnitOfMeasurement("C");
+  tempHighClearNumber_.setMin(-40.0f);
+  tempHighClearNumber_.setMax(125.0f);
+  tempHighClearNumber_.setStep(0.1f);
+
   tempLowSetNumber_.setName("Temp Low Set");
+  tempLowSetNumber_.setUnitOfMeasurement("C");
+  tempLowSetNumber_.setMin(-40.0f);
+  tempLowSetNumber_.setMax(125.0f);
+  tempLowSetNumber_.setStep(0.1f);
+
   tempLowClearNumber_.setName("Temp Low Clear");
+  tempLowClearNumber_.setUnitOfMeasurement("C");
+  tempLowClearNumber_.setMin(-40.0f);
+  tempLowClearNumber_.setMax(125.0f);
+  tempLowClearNumber_.setStep(0.1f);
 
   humHighSetNumber_.setName("Hum High Set");
+  humHighSetNumber_.setUnitOfMeasurement("%");
+  humHighSetNumber_.setMin(0.0f);
+  humHighSetNumber_.setMax(100.0f);
+  humHighSetNumber_.setStep(0.1f);
+
   humHighClearNumber_.setName("Hum High Clear");
+  humHighClearNumber_.setUnitOfMeasurement("%");
+  humHighClearNumber_.setMin(0.0f);
+  humHighClearNumber_.setMax(100.0f);
+  humHighClearNumber_.setStep(0.1f);
+
   humLowSetNumber_.setName("Hum Low Set");
+  humLowSetNumber_.setUnitOfMeasurement("%");
+  humLowSetNumber_.setMin(0.0f);
+  humLowSetNumber_.setMax(100.0f);
+  humLowSetNumber_.setStep(0.1f);
+
   humLowClearNumber_.setName("Hum Low Clear");
+  humLowClearNumber_.setUnitOfMeasurement("%");
+  humLowClearNumber_.setMin(0.0f);
+  humLowClearNumber_.setMax(100.0f);
+  humLowClearNumber_.setStep(0.1f);
 
   lightOnTimeNumber_.setName("Light On Time Minutes");
+  lightOnTimeNumber_.setUnitOfMeasurement("min");
+  lightOnTimeNumber_.setMin(0.0f);
+  lightOnTimeNumber_.setMax(1439.0f);
+  lightOnTimeNumber_.setStep(1.0f);
+
   lightOffTimeNumber_.setName("Light Off Time Minutes");
+  lightOffTimeNumber_.setUnitOfMeasurement("min");
+  lightOffTimeNumber_.setMin(0.0f);
+  lightOffTimeNumber_.setMax(1439.0f);
+  lightOffTimeNumber_.setStep(1.0f);
+
   defaultLightDimMinutesNumber_.setName("Light Default Dim Minutes");
+  defaultLightDimMinutesNumber_.setUnitOfMeasurement("min");
+  defaultLightDimMinutesNumber_.setMin(0.0f);
+  defaultLightDimMinutesNumber_.setMax(1440.0f);
+  defaultLightDimMinutesNumber_.setStep(1.0f);
 
   soilAirNumber_.setName("Soil Air");
+  soilAirNumber_.setMin(0.0f);
+  soilAirNumber_.setMax(1000.0f);
+  soilAirNumber_.setStep(1.0f);
+
   soilWaterNumber_.setName("Soil Water");
-  soilDepthNumber_.setName("Soil Depth Mm");
+  soilWaterNumber_.setMin(0.0f);
+  soilWaterNumber_.setMax(1000.0f);
+  soilWaterNumber_.setStep(1.0f);
+
+  soilDepthNumber_.setName("Soil Depth mm");
+  soilDepthNumber_.setUnitOfMeasurement("mm");
+  soilDepthNumber_.setMin(0.0f);
+  soilDepthNumber_.setMax(120.0f);
+  soilDepthNumber_.setStep(1.0f);
 
   haDimTargetPercentNumber_.setName("HA Dim Target Percent");
+  haDimTargetPercentNumber_.setUnitOfMeasurement("%");
+  haDimTargetPercentNumber_.setMin(0.0f);
+  haDimTargetPercentNumber_.setMax(100.0f);
+  haDimTargetPercentNumber_.setStep(1.0f);
+
   haDimDurationMinutesNumber_.setName("HA Dim Duration Minutes");
+  haDimDurationMinutesNumber_.setUnitOfMeasurement("min");
+  haDimDurationMinutesNumber_.setMin(0.0f);
+  haDimDurationMinutesNumber_.setMax(1440.0f);
+  haDimDurationMinutesNumber_.setStep(1.0f);
 
   syncTimeButton_.setName("Sync Time");
   readSoilRawButton_.setName("Read Soil Raw Value");
@@ -206,13 +279,48 @@ void HAInterface::begin() {
   pendingHaDimTargetPercent_ = 100;
   pendingHaDimDurationMinutes_ = configData_.defaultLightDimMinutes;
 
-  mqtt_.begin(MQTT_HOST, MQTT_USERNAME, MQTT_PASSWORD);
+  const bool mqttBeginOk = mqtt_.begin(MQTT_HOST, MQTT_USERNAME, MQTT_PASSWORD);
+  Serial.print(F("HAMqtt begin: initialized="));
+  Serial.print(mqttBeginOk ? F("YES") : F("NO"));
+  Serial.print(F(", broker="));
+  Serial.print(MQTT_HOST);
+  Serial.print(F(", connectedNow="));
+  Serial.println(mqtt_.isConnected() ? F("YES") : F("NO"));
 
+  if (mqttBeginOk) {
+    mqtt_.loop();
+    Serial.print(F("HAMqtt first connect attempt: connected="));
+    Serial.print(mqtt_.isConnected() ? F("YES") : F("NO"));
+    Serial.print(F(", state="));
+    Serial.println(static_cast<int>(mqtt_.getState()));
+  } else {
+    Serial.println(F("HAMqtt setup failed before any broker connection attempt."));
+  }
+
+  wasWifiConnected_ = networkManager_.isWifiConnected();
   wasMqttConnected_ = mqtt_.isConnected();
   networkManager_.setMqttConnected(wasMqttConnected_, millis());
 }
 
 void HAInterface::update(uint32_t nowMs) {
+  const bool wifiConnected = networkManager_.isWifiConnected();
+  if (wifiConnected != wasWifiConnected_) {
+    if (wifiConnected) {
+      Serial.println(F("WiFi connected, retrying MQTT setup."));
+      mqtt_.disconnect();
+
+      const bool mqttBeginOk = mqtt_.begin(MQTT_HOST, MQTT_USERNAME, MQTT_PASSWORD);
+      Serial.print(F("HAMqtt re-begin after WiFi connect: initialized="));
+      Serial.print(mqttBeginOk ? F("YES") : F("NO"));
+      Serial.print(F(", connectedNow="));
+      Serial.println(mqtt_.isConnected() ? F("YES") : F("NO"));
+    } else {
+      Serial.println(F("WiFi disconnected."));
+    }
+
+    wasWifiConnected_ = wifiConnected;
+  }
+
   if (!networkManager_.isWifiConnected() && mqtt_.isConnected()) {
     mqtt_.disconnect();
   }
@@ -236,6 +344,7 @@ void HAInterface::update(uint32_t nowMs) {
 }
 
 void HAInterface::onMqttConnected() {
+  Serial.println(F("Connected to MQTT broker."));
   publishAllStates();
 }
 
@@ -435,19 +544,19 @@ void HAInterface::handleNumberCommand(HANumeric number, HANumber* sender) {
   bool updateSoilCalibration = false;
 
   if (sender == &tempHighSetNumber_) {
-    configData_.tempHighSet = clampFloat(floatValue, -45.0f, 130.0f);
+    configData_.tempHighSet = clampFloat(floatValue, -40.0f, 125.0f);
     persistConfig = true;
     reapplyThresholds = true;
   } else if (sender == &tempHighClearNumber_) {
-    configData_.tempHighClear = clampFloat(floatValue, -45.0f, 130.0f);
+    configData_.tempHighClear = clampFloat(floatValue, -40.0f, 125.0f);
     persistConfig = true;
     reapplyThresholds = true;
   } else if (sender == &tempLowSetNumber_) {
-    configData_.tempLowSet = clampFloat(floatValue, -45.0f, 130.0f);
+    configData_.tempLowSet = clampFloat(floatValue, -40.0f, 125.0f);
     persistConfig = true;
     reapplyThresholds = true;
   } else if (sender == &tempLowClearNumber_) {
-    configData_.tempLowClear = clampFloat(floatValue, -45.0f, 130.0f);
+    configData_.tempLowClear = clampFloat(floatValue, -40.0f, 125.0f);
     persistConfig = true;
     reapplyThresholds = true;
   } else if (sender == &humHighSetNumber_) {
@@ -477,15 +586,15 @@ void HAInterface::handleNumberCommand(HANumeric number, HANumber* sender) {
     pendingHaDimDurationMinutes_ = configData_.defaultLightDimMinutes;
     persistConfig = true;
   } else if (sender == &soilAirNumber_) {
-    configData_.soilAir = static_cast<int16_t>(clampUInt16(intValue, 0, 4095));
+    configData_.soilAir = static_cast<int16_t>(clampUInt16(intValue, 0, 1000));
     persistConfig = true;
     updateSoilCalibration = true;
   } else if (sender == &soilWaterNumber_) {
-    configData_.soilWater = static_cast<int16_t>(clampUInt16(intValue, 0, 4095));
+    configData_.soilWater = static_cast<int16_t>(clampUInt16(intValue, 0, 1000));
     persistConfig = true;
     updateSoilCalibration = true;
   } else if (sender == &soilDepthNumber_) {
-    configData_.soilDepthMm = static_cast<int16_t>(clampUInt16(intValue, 0, 1000));
+    configData_.soilDepthMm = static_cast<int16_t>(clampUInt16(intValue, 0, 120));
     persistConfig = true;
     updateSoilCalibration = true;
   } else if (sender == &haDimTargetPercentNumber_) {
