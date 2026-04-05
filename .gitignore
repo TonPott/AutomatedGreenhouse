@@ -5,3 +5,5 @@ build/
 /PowerShellPath
 *.FCBak
 Smaeenhouse/Credentials.h
+git-filter-repo
+git_filter_repo.py
