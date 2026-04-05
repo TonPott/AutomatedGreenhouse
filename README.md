@@ -157,3 +157,38 @@ Die MQTT-/HA-Integration basiert auf:
   https://github.com/dawidchyrzynski/arduino-home-assistant
 
 Weitere Details stehen in `entity-model.md`.
+
+## Offene Probleme
+
+- **Licht-Dimmung über den Sosen-Treiber ist noch nicht final gelöst.** Der dokumentierte RC-/PC817-Ansatz bildet den erwarteten Widerstands-/Stromsenken-Eingang des Treibers bisher nicht zuverlässig nach.
+- **Die endgültige Hardwarestrategie für die Dimmung ist offen.** Wahrscheinlich wird ein Widerstands-Stufennetzwerk oder eine andere robuste, zum Treiber passende Lösung nötig.
+- **Das Home-Assistant-Frontend ist noch nicht spezifiziert und umgesetzt.** Zeitdarstellung, Kalibrierungsdialog und bedingte Sichtbarkeit im Dashboard fehlen noch als sauberes Konzept.
+- **Die von Codex erzeugte Firmware muss weiter gegen die aktuelle Dokumentation geprüft werden.** Besonders wichtig bleiben RTC-Alarm-Logik, Persistenz, HA-Entities und das Zusammenspiel zwischen Arduino-Auto-Mode und HA-Steuerung.
+- **Der reale Aufbau muss weiter hardwareseitig validiert werden.** Dazu gehören insbesondere Dimmverhalten, Versorgungskonzept und das Verhalten im Offline-Fallback.
+
+## Roadmap
+
+1. **Dimmkonzept finalisieren**
+   - den Eingang des Sosen-Treibers mit einer robusten Lösung ansteuern
+   - dokumentieren, welche Hardwarevariante endgültig verwendet wird
+
+2. **Firmware gegen die aktuelle Spezifikation nachziehen**
+   - Codex gezielt gegen `SPEC.md`, `MODULES.md` und `entity-model.md` patchen lassen
+   - bestehende Inkonsistenzen im Code beseitigen
+
+3. **Home-Assistant-Frontend-Konzept ergänzen**
+   - Zeitdarstellung für `light_on_time` / `light_off_time`
+   - Kalibrierungsablauf für den Bodenfeuchtesensor
+   - Dashboard-Layout mit bedingter Sichtbarkeit je nach Modus und Bedienbarkeit
+
+4. **HA-Dashboard und Automationen umsetzen**
+   - Helpers, Templates, Scripts und Karten definieren
+   - Scheduler-Integration für den HA-Dimmauftrag vervollständigen
+
+5. **Gesamtsystem im realen Aufbau testen**
+   - Schaltverhalten, Sensorik, RPM, RTC-Alarme und Persistenz prüfen
+   - Verhalten bei WLAN-/MQTT-Ausfall validieren
+
+6. **Dokumentation und Code synchron halten**
+   - nach jeder größeren Hardware- oder Logikänderung zuerst die Anforderungen aktualisieren
+   - anschließend Codex per Patch-/Review-Workflow auf den bestehenden Code ansetzen
