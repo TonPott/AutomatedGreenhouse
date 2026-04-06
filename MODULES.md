@@ -36,7 +36,7 @@ Zentrale Compile-Time-Konstanten.
 - Pinbelegung
 - Default-Werte
 - Messintervalle
-- PWM-Grenzen
+- Dimmer-Widerstandsgrenzen / Helligkeits-Mapping
 - Standard-Thresholds
 - Standard-Zeitplan
 - Standard-Soil-Kalibrierung
@@ -47,7 +47,7 @@ Zentrale Compile-Time-Konstanten.
 - `PIN_RTC_ALARM`
 - `PIN_FAN_SWITCH`
 - `PIN_FAN_TACH`
-- `PIN_LIGHT_PWM`
+- `PIN_LIGHT_DIM_SHDN` (optional)
 - `PIN_LIGHT_POWER`
 - `PIN_SOIL_SENSOR`
 
@@ -228,14 +228,16 @@ Das Signal ist invertiert; der Code wählt entsprechend die Interrupt-Flanke.
 ## 7. LightController
 
 ### Aufgabe
-Steuerung von PWM, Relais und Dimmaufträgen.
+Steuerung von AD5263-Dimmer, Relais und Dimmaufträgen.
 
 ### Zentrale Verantwortung
 - klare Trennung zwischen Arduino-Auto und HA-Steuerung
 - Verwaltung des aktuellen Helligkeitszustands
 - Ausführung von Dimmjobs
+- AD5263-Ansteuerung per I²C außerhalb von ISRs
+- zwei AD5263-Kanäle synchron für den Dimmerpfad setzen
 - hartes Relais-Aus separat
-
+- definierte Reihenfolge: AD5263-Widerstand setzen vor Relais-EIN
 ### Wichtige interne Zustände
 - `lightAutoMode`
 - `currentBrightnessPercent`
@@ -310,17 +312,22 @@ Verbindliche Regeln:
 - neuer HA-Dimmauftrag ersetzt einen laufenden HA-Dimmauftrag
 
 ### Hardware-Hinweis Licht-Dimmer
-Die textliche Doku und der Schaltplan sollen das RC-/Optokoppler-Netzwerk dokumentieren:
+Die textliche Doku und der Schaltplan sollen die AD5263-Lösung dokumentieren:
 
-- `PIN_LIGHT_PWM` → 1 kΩ → Knoten
-- Knoten → 0,1 µF gegen GND
-- Knoten → 330 Ω → Anode des PC817-Eingangs
-- Kathode des PC817-Eingangs → GND
+- AD5263BRUZ50 als digital einstellbarer Widerstand zwischen `Dim+` und `Dim-`
+- zwei Potikanäle/Wiper in Reihe für den erforderlichen Widerstandsbereich
+- I²C-Ansteuerung über `SDI/SDA` und `CLK/SCL`, I²C-Modus über `DIS = 1`
+- `CS/AD0` und `RES/AD1` als Adressbits im I²C-Modus
+- keine galvanische Trennung im Dimmerpfad
 
-Der `PIN_LIGHT_POWER` steuert ein 3,3-V-Relaismodul; im Code bleibt die Semantik eines harten Light-Power-Schalters erhalten.
+Verbindliche Reihenfolge im Controller:
+
+1. Soll-Widerstand auf AD5263 setzen
+2. Relais (`PIN_LIGHT_POWER`) schließen
+3. Beim Ausschalten Relais öffnen
+4. Optional AD5263 in `SHDN`, solange Relais offen ist
 
 ## 8. MoistureSensor
-
 ### Aufgabe
 Lesen und Umrechnen des Bodenfeuchtesensors.
 

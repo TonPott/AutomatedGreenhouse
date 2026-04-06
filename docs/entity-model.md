@@ -215,9 +215,10 @@ nicht zwingend nötig.
 Nur falls gewünscht:
 
 - aktiver Licht-Steuermodus
-- aktueller PWM-Rohwert
+- aktueller AD5263-Code oder abgeleiteter Dimmer-Widerstand
 - Fallback aktiv
 - letzte NTP-Sync-Zeit
 - RTC-Alarmzustand
 
 Diese sind optional und nicht Teil des Pflichtumfangs.
+

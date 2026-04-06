@@ -9,7 +9,7 @@ Der Controller steuert und überwacht:
 
 - Temperatur und Luftfeuchtigkeit über einen **SHT3x**
 - einen **12V 3-Pin-Lüfter** mit Tachoauswertung
-- ein **dimmbares Grow-Light** über PWM + Relais
+- ein **dimmbares Grow-Light** über AD5263-Dimmer + Relais
 - einen **kapazitiven Bodenfeuchtesensor**
 - eine **DS3231-RTC mit AT24C32-EEPROM**
 - die Integration in **Home Assistant** per **MQTT** über **ArduinoHA**
@@ -28,7 +28,8 @@ Das System soll sowohl mit Home Assistant als auch bei Verbindungsverlust lokal 
 - DFRobot Capacitive Soil Moisture Sensor SEN0308
 - ViparSpectra P1000 Grow-Light
   - 230-V-Zuleitung über 3,3-V-Relaismodul geschaltet
-  - Dimmung über Optokoppler **PC817** an einem 0–10-V-Stromeingang
+  - Dimmung über einen variablen Widerstand zwischen `Dim+` und `Dim-`
+- AD5263BRUZ50 (auf TSOPP24-Adapter) als digital gesteuerter Widerstand
 - Home Assistant mit MQTT
 
 ## Projektüberblick für neue Nutzer
@@ -50,8 +51,8 @@ Diese README ergänzt den Schaltplan um kurze textliche Erklärungen.
 - RTC SQW/INT: `10`
 - Fan Switch: `2`
 - Fan Tach: `A1`
-- Light PWM: `4`
 - Light Power Relay: `3`
+- Light Dimmer (AD5263): `I²C` über `SDA/SCL`
 - Soil Moisture: `A0`
 
 ## Wichtige Hardware-Hinweise
@@ -76,19 +77,48 @@ Zusätzlich wird der **SQW/INT-Ausgang** der DS3231 für den Arduino-internen Li
 - Arduino-Seite mit `INPUT_PULLUP`
 - falls der reale Aufbau störanfällig ist, kann zusätzlich ein externer 10-kΩ-Pull-up auf 3,3 V verwendet werden
 
-### 3. Licht-Dimmer (RC + PC817)
+### 3. Licht-Dimmer (AD5263BRUZ50)
 
-Der PWM-Ausgang wird über ein RC-/Optokoppler-Netzwerk geglättet bzw. an den Lichteingang angepasst:
+Der Licht-Dimmer wird als **digital einstellbarer Widerstand** zwischen `Dim+` und `Dim-` umgesetzt.
 
-- `PIN_LIGHT_PWM` → 1 kΩ → Knoten
-- Knoten → 0,1 µF gegen GND
-- Knoten → 330 Ω → PC817 Eingang (+)
-- PC817 Eingang (−) → GND
+- Zielbereich am Lichteingang: ca. `1 kΩ ... 100 kΩ` zwischen `Dim+` und `Dim-`
+- Umsetzung über zwei AD5263-Kanäle in Reihe (Wiper-Pfad in Serie)
+- keine galvanische Trennung im Dimmerpfad
+
+Elektrische Grundbeschaltung:
+
+- IC auf TSOPP24-Adapter
+- `VDD` an `12 V`
+- `VSS` an `GND`
+- Abblockung `VDD` gegen `VSS`: `100 nF` oder `1 µF`
+- `VL` (Logikversorgung) an `3,3 V` des Nano 33 IoT
+- zusätzlicher `100 nF` von `VL` nach `GND`
+
+I²C-relevante AD5263-Pins (Datenblatt):
+
+- `DIS = 1` für I²C-Betrieb
+- `SDI/SDA` = I²C-Datenleitung
+- `CLK/SCL` = I²C-Taktleitung
+- `CS/AD0` und `RES/AD1` = I²C-Adressbits (`AD0`/`AD1`)
+- Falls externe Pull-ups verwendet werden: auf `3,3 V` beziehen
+
+Shutdown-Verhalten:
+
+- `SHDN` legt intern den Wiper auf Terminal B und trennt Terminal A
+- In dieser Hardware darf `SHDN` nicht auf `VDD = 12 V` gelegt werden; Logikpegel müssen zu `VL` passen
+- Der AD5263 startet in Mittelstellung, daher muss vor Relais-Einschalten zuerst ein definierter Widerstand gesetzt werden
 
 ### 4. Hartes Licht-Aus
 
-Die 230-V-Zuleitung des Licht-Netzteils wird über ein **3,3-V-Relaismodul mit Optokoppler** geschaltet.
+Die 230-V-Zuleitung des Licht-Netzteils wird über ein **3,3-V-Relaismodul** geschaltet.
 Im Code bleibt das konzeptionell ein separater „hard power off“-Pfad.
+
+Verbindliche Reihenfolge:
+
+1. Vor `Relais EIN` zuerst AD5263 auf definierten Widerstand setzen
+2. Erst danach Relais schließen
+3. Beim Ausschalten zuerst Relais öffnen
+4. Danach optional AD5263 in `SHDN`
 
 ### 5. Lüfter-Tacho-Signalaufbereitung
 
@@ -160,17 +190,15 @@ Weitere Details stehen in `entity-model.md`.
 
 ## Offene Probleme
 
-- **Licht-Dimmung über den Sosen-Treiber ist noch nicht final gelöst.** Der dokumentierte RC-/PC817-Ansatz bildet den erwarteten Widerstands-/Stromsenken-Eingang des Treibers bisher nicht zuverlässig nach.
-- **Die endgültige Hardwarestrategie für die Dimmung ist offen.** Wahrscheinlich wird ein Widerstands-Stufennetzwerk oder eine andere robuste, zum Treiber passende Lösung nötig.
 - **Das Home-Assistant-Frontend ist noch nicht spezifiziert und umgesetzt.** Zeitdarstellung, Kalibrierungsdialog und bedingte Sichtbarkeit im Dashboard fehlen noch als sauberes Konzept.
-- **Die von Codex erzeugte Firmware muss weiter gegen die aktuelle Dokumentation geprüft werden.** Besonders wichtig bleiben RTC-Alarm-Logik, Persistenz, HA-Entities und das Zusammenspiel zwischen Arduino-Auto-Mode und HA-Steuerung.
-- **Der reale Aufbau muss weiter hardwareseitig validiert werden.** Dazu gehören insbesondere Dimmverhalten, Versorgungskonzept und das Verhalten im Offline-Fallback.
+- **Die Firmware muss weiter gegen die aktuelle Dokumentation geprüft werden.** Besonders wichtig bleiben RTC-Alarm-Logik, Persistenz, HA-Entities und das Zusammenspiel zwischen Arduino-Auto-Mode und HA-Steuerung.
+- **Der reale Aufbau muss weiter hardwareseitig validiert werden.** Dazu gehören insbesondere AD5263-Start-/Shutdown-Verhalten, Relais-Sequenzierung, Versorgungskonzept und das Verhalten im Offline-Fallback.
 
 ## Roadmap
 
-1. **Dimmkonzept finalisieren**
-   - den Eingang des Sosen-Treibers mit einer robusten Lösung ansteuern
-   - dokumentieren, welche Hardwarevariante endgültig verwendet wird
+1. **AD5263-Dimmer im Realaufbau validieren**
+   - Widerstandsbereich zwischen `Dim+`/`Dim-` und Helligkeitsabbildung prüfen
+   - Start-/Shutdown-Sequenz mit Relais elektrisch und funktional absichern
 
 2. **Firmware gegen die aktuelle Spezifikation nachziehen**
    - Codex gezielt gegen `SPEC.md`, `MODULES.md` und `entity-model.md` patchen lassen
@@ -192,3 +220,4 @@ Weitere Details stehen in `entity-model.md`.
 6. **Dokumentation und Code synchron halten**
    - nach jeder größeren Hardware- oder Logikänderung zuerst die Anforderungen aktualisieren
    - anschließend Codex per Patch-/Review-Workflow auf den bestehenden Code ansetzen
+

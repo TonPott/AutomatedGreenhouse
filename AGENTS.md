@@ -106,7 +106,7 @@ Vor größeren Codeänderungen:
 - Hardware-Abschnitte so formulieren, dass das Projekt auch beim ersten Lesen verständlich bleibt.
 - Schaltplan im Projektordner als Primärreferenz erwähnen.
 - Textliche Doku soll zusätzlich die Signalaufbereitung für:
-  - Licht-Optokoppler (RC-Glied)
+  - Licht-Dimmer (AD5263-Widerstandspfad zwischen Dim+ und Dim-)
   - Lüfter-Tacho (2N3904-Stufe)
   beschreiben.
 
@@ -126,3 +126,4 @@ Wenn Code und Doku widersprechen, gilt zuerst die Doku — außer der Nutzer sag
 - blockierende `delay()`-Ketten
 - Bibliotheken vendoren/einchecken ohne Grund
 - spontane Änderung der Repo-Struktur
+

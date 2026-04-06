@@ -26,8 +26,8 @@ Das System soll mit Home Assistant zusammenarbeiten, bei Verbindungsverlust aber
   - externes I²C-EEPROM `AT24C32`
   - SQW/INT-Ausgang für RTC-Alarme
 - Grow-Light:
-  - PWM-Dimmung über Optokoppler
-  - harte Abschaltung über 3,3-V-Relaismodul mit Optokoppler
+  - Dimmung über einen digital einstellbaren Widerstand (AD5263) zwischen `Dim+` und `Dim-`
+  - harte Abschaltung über 3,3-V-Relaismodul
 - DFRobot Capacitive Soil Moisture Sensor SEN0308
 - WLAN + MQTT zu Home Assistant
 
@@ -41,7 +41,7 @@ Der Schaltplan im Projektordner ist die Primärreferenz und soll in den Textdoku
 - RTC Alarm (SQW/INT): Pin 10
 - Fan Switch: Pin 2
 - Fan Tach: Pin A1
-- Light PWM: Pin 4
+- Light Dimmer: I²C (SDA/SCL)
 - Light Power Relay: Pin 3
 - Soil Moisture: Pin A0
 
@@ -128,13 +128,12 @@ Das resultierende Signal ist invertiert.
 ### 6.1 Grundstruktur
 Das Licht hat zwei getrennte Steuerpfade:
 
-- PWM-Dimmer
-- hartes Relais-Aus
+- AD5263-Dimmer als variabler Widerstand zwischen `Dim+` und `Dim-`
+- hartes Relais-Aus der 230-V-Zuleitung
 
-### 6.2 PWM-Kennlinie
-- `0` = vollständig an
-- `120` = dunkelster stabiler Zustand
-- `>160` = vollständig aus
+### 6.2 Helligkeits-/Widerstandsabbildung
+Die Firmware arbeitet weiterhin mit Helligkeitssollwerten (0 bis 100 %).
+Die Hardwareebene bildet diese Sollwerte auf AD5263-Widerstandswerte ab.
 
 ### 6.3 Zwei Steuerwelten
 Es muss sauber unterschieden werden zwischen:
@@ -211,15 +210,40 @@ Dieser soll:
 
 Dieser Befehl ist nur im HA-gesteuerten Betrieb relevant.
 
-### 6.10 Hardware-Signalaufbereitung Lichtdimmer
-Die Dokumentation soll das RC-/Optokoppler-Netzwerk enthalten:
+### 6.10 Hardwareanforderung Lichtdimmer (AD5263BRUZ50)
+Der Dimmerpfad wird als reiner Widerstand zwischen `Dim+` und `Dim-` realisiert.
 
-- `PIN_LIGHT_PWM` → 1 kΩ → Knoten
-- Knoten → 0,1 µF gegen GND
-- Knoten → 330 Ω → PC817-Eingang (+)
-- PC817-Eingang (−) → GND
+Verbindliche Anforderungen:
 
-Das Relais für das harte Licht-Aus ersetzt den bisherigen MOSFET, ändert die Softwarelogik aber nicht.
+- Zielbereich am Lichteingang: ca. `1 kΩ ... 100 kΩ`
+- Umsetzung mit AD5263BRUZ50 über zwei Potikanäle/Wiper in Reihe
+- Ansteuerung des AD5263 per I²C
+- keine galvanische Trennung im Dimmerpfad
+- keine feste GND-Referenz im Dimmerpfad dokumentieren
+
+Verbindliche AD5263-Versorgung:
+
+- `VDD` an `12 V`
+- `VSS` an `GND`
+- `VL` an `3,3 V` Logikversorgung des Nano 33 IoT
+- `100 nF` oder `1 µF` zwischen `VDD` und `VSS`
+- `100 nF` zwischen `VL` und `GND`
+
+Verbindliche I²C-Pinrollen am AD5263 (gemäß Datenblatt):
+
+- `DIS = 1` aktiviert I²C-Modus
+- `SDI/SDA` ist die I²C-Datenleitung
+- `CLK/SCL` ist die I²C-Taktleitung
+- `CS/AD0` und `RES/AD1` dienen als I²C-Adressbits
+- Pull-ups der I²C-Leitungen auf `3,3 V` Logikniveau
+
+Shutdown-/Startverhalten (verbindlich):
+
+- Der AD5263 startet in Mittelstellung
+- Vor dem Schließen des Relais muss der gewünschte Widerstandswert gesetzt werden
+- Erst danach darf das Relais eingeschaltet werden
+- Beim Ausschalten wird zuerst das Relais geöffnet
+- Danach kann der AD5263 im Zustand „Relais offen“ in `SHDN` gesetzt werden
 
 ### 6.11 Race-Condition- und Logikregeln fürs Licht
 1. Es gibt immer genau **eine aktive Lichtsteuerquelle**:
@@ -500,7 +524,7 @@ Nur schreiben, wenn Werte sich wirklich geändert haben.
 ### 13.2 Modulgrenzen
 - SHTa: Sensor + Alert-Auswertung
 - FanController: Lüfter schalten + RPM messen
-- LightController: PWM/Relais + Dimmaufträge
+- LightController: AD5263/Relais + Dimmaufträge
 - ClockService: DS3231 + Alarmverwaltung + NTP-Sync
 - HAInterface: HA-Entities + Commands
 - NetworkManager: WiFi/MQTT + Reconnect
@@ -527,3 +551,4 @@ Nur schreiben, wenn Werte sich wirklich geändert haben.
 
 ### 14.2 Alert-Struktur
 - `alertTriggers[]` bleibt als Statuscontainer erhalten
+
