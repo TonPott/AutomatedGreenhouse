@@ -1,7 +1,6 @@
 # Grow Controller (Arduino Nano 33 IoT)
 
 Dieses Repository enthält die Firmware und die Projektdokumentation für einen Grow-Controller auf Basis eines **Arduino Nano 33 IoT**.
-Entstanden in enger Zusammenarbeit mit ChatGPT 5.4 und Codex.
 
 ## Ziel
 
@@ -52,6 +51,7 @@ Diese README ergänzt den Schaltplan um kurze textliche Erklärungen.
 - Fan Switch: `2`
 - Fan Tach: `A1`
 - Light Power Relay: `3`
+- Light Dim SHDN: `4`
 - Light Dimmer (AD5263): `I²C` über `SDA/SCL`
 - Soil Moisture: `A0`
 
@@ -71,54 +71,90 @@ Die Firmware nutzt:
 
 Zusätzlich wird der **SQW/INT-Ausgang** der DS3231 für den Arduino-internen Lichtzeitplan genutzt.
 
-### 2. RTC-Alarmleitung
-
-- DS3231 `SQW/INT` an Arduino-Pin `10`
-- Arduino-Seite mit `INPUT_PULLUP`
-- falls der reale Aufbau störanfällig ist, kann zusätzlich ein externer 10-kΩ-Pull-up auf 3,3 V verwendet werden
-
-### 3. Licht-Dimmer (AD5263BRUZ50)
+### 2. Licht-Dimmer (AD5263BRUZ50)
 
 Der Licht-Dimmer wird als **digital einstellbarer Widerstand** zwischen `Dim+` und `Dim-` umgesetzt.
+Es gibt im Lichtsystem weiterhin zwei getrennte Pfade:
 
-- Zielbereich am Lichteingang: ca. `1 kΩ ... 100 kΩ` zwischen `Dim+` und `Dim-`
-- Umsetzung über zwei AD5263-Kanäle in Reihe (Wiper-Pfad in Serie)
+- AD5263-Dimmerpfad (analoger Widerstandspfad)
+- hartes Abschalten über Relais
+
+Verbindliche AD5263-Hardware:
+
+- Bauteil: `AD5263BRUZ50`
+- Montage über TSOPP24-Adapter
+- `VDD = 12 V`
+- `VSS = GND`
+- `VL/VLOGIC = 3,3 V`
+- Abblockung `VDD` gegen `VSS`: `100 nF` oder `1 µF`
+- Abblockung `VL` gegen `GND`: `100 nF`
 - keine galvanische Trennung im Dimmerpfad
 
-Elektrische Grundbeschaltung:
+Verbindlicher I²C-Betrieb:
 
-- IC auf TSOPP24-Adapter
-- `VDD` an `12 V`
-- `VSS` an `GND`
-- Abblockung `VDD` gegen `VSS`: `100 nF` oder `1 µF`
-- `VL` (Logikversorgung) an `3,3 V` des Nano 33 IoT
-- zusätzlicher `100 nF` von `VL` nach `GND`
+- `DIS = 1` (I²C-Modus)
+- `SDI/SDA` an SDA
+- `CLK/SCL` an SCL
+- `CS/AD0` und `RES/AD1` als Adressbits
+- `AD0 = GND`, `AD1 = GND`
+- feste 7-Bit-Adresse: `0x2C`
+- Pull-ups der I²C-Leitungen auf `3,3 V`
 
-I²C-relevante AD5263-Pins (Datenblatt):
+Verbindliche analoge Kanalverschaltung:
 
-- `DIS = 1` für I²C-Betrieb
-- `SDI/SDA` = I²C-Datenleitung
-- `CLK/SCL` = I²C-Taktleitung
-- `CS/AD0` und `RES/AD1` = I²C-Adressbits (`AD0`/`AD1`)
-- Falls externe Pull-ups verwendet werden: auf `3,3 V` beziehen
+- Verwendet werden Kanal 1 und Kanal 2
+- Signalpfad: `Dim+ -> W2 -> B2 -> A1 -> W1 -> Dim-`
 
-Shutdown-Verhalten:
+Helligkeitsmapping (Firmware-Konzept):
 
-- `SHDN` legt intern den Wiper auf Terminal B und trennt Terminal A
-- In dieser Hardware darf `SHDN` nicht auf `VDD = 12 V` gelegt werden; Logikpegel müssen zu `VL` passen
-- Der AD5263 startet in Mittelstellung, daher muss vor Relais-Einschalten zuerst ein definierter Widerstand gesetzt werden
+- Firmware arbeitet logisch mit `0..100 %` Helligkeit
+- Mapping auf RDAC-Werte ist verbindlich:
+  - `0 % = W2 255, W1 0`
+  - `50 % = W2 0, W1 0`
+  - `100 % = W2 0, W1 255`
+- `0..50 %`: zuerst Kanal 2 herunterregeln
+- `50..100 %`: danach Kanal 1 hochregeln
 
-### 4. Hartes Licht-Aus
+Widerstandsgrenzen:
 
-Die 230-V-Zuleitung des Licht-Netzteils wird über ein **3,3-V-Relaismodul** geschaltet.
-Im Code bleibt das konzeptionell ein separater „hard power off“-Pfad.
+- Zielbereich am Lichteingang nominell ca. `0..100 kΩ`
+- praktisch mit zwei AD5263-Kanälen im Rheostat-Betrieb angenähert
+- konkrete untere/obere Limits werden später über Firmware-Konstanten begrenzt
+- diese Limits sind **nicht** über HA konfigurierbar
 
-Verbindliche Reihenfolge:
+### 3. SHDN und Schaltreihenfolge
 
-1. Vor `Relais EIN` zuerst AD5263 auf definierten Widerstand setzen
-2. Erst danach Relais schließen
-3. Beim Ausschalten zuerst Relais öffnen
-4. Danach optional AD5263 in `SHDN`
+`SHDN` wird aktiv verwendet und liegt auf Pin `4`.
+Verbindlich vorgesehen ist ein externer `10 kΩ` Pull-down nach GND.
+Durch diesen externen Pull-down wird kein interner Pull-up für `SHDN` verwendet.
+
+Wichtig:
+
+- Der AD5263 startet bei Power-on auf Midscale.
+- Ohne Sequenzierung kann das Licht beim Zuschalten mit falscher Helligkeit starten.
+
+Verbindliche Startreihenfolge:
+
+1. AD5263 bleibt beim Boot zunächst in `SHDN`
+2. Konfiguration laden
+3. Sollzustand rekonstruieren
+4. Widerstandswert setzen
+5. `SHDN` freigeben
+6. erst danach Relais schließen
+
+Verbindliche Ausschaltreihenfolge:
+
+1. Relais öffnen
+2. danach AD5263 in `SHDN`
+
+### 4. Fehlerverhalten Lichtpfad
+
+- Wenn AD5263 beim Boot nicht erreichbar ist: Relais bleibt offen, Licht bleibt aus, `light_fault` und `light_fault_reason` werden gesetzt.
+- Wenn AD5263 im Betrieb ausfällt oder ein Schreib-/Readback-Fehler erkannt wird: Relais öffnen, `light_fault` setzen, `light_fault_reason` aktualisieren.
+- Typische Werte für `light_fault_reason`:
+  - `ad5263_not_found`
+  - `ad5263_write_failed`
+  - `ad5263_readback_mismatch`
 
 ### 5. Lüfter-Tacho-Signalaufbereitung
 
@@ -153,8 +189,7 @@ Das Projekt ist bewusst als klassischer Arduino-Sketchordner gedacht:
 - alle `.h/.cpp` im gleichen Ordner
 - keine PlatformIO-Pflicht
 
-Unter `module-sketches/` liegen zusätzliche Test-Sketche, mit denen sich einzelne
-Module getrennt auf dem Board prüfen lassen.
+Unter `module-sketches/` liegen zusätzliche Test-Sketche, mit denen sich einzelne Module getrennt auf dem Board prüfen lassen.
 
 ## Credentials
 
@@ -166,6 +201,8 @@ Lege lokal eine Datei `Credentials.h` an, basierend auf `Credentials.example.h`.
 
 Persistente Konfiguration wird im **AT24C32-EEPROM** des RTC-Moduls gespeichert.
 Der Zugriff erfolgt über die Bibliothek **JC_EEPROM**.
+
+Zusätzlich wird ein kleiner `Light Resume State` vorgesehen, um den Sollzustand nach Neustarts konsistent zu rekonstruieren.
 
 ## Zeitsynchronisation und Lichtzeitplan
 
@@ -190,34 +227,11 @@ Weitere Details stehen in `entity-model.md`.
 
 ## Offene Probleme
 
-- **Das Home-Assistant-Frontend ist noch nicht spezifiziert und umgesetzt.** Zeitdarstellung, Kalibrierungsdialog und bedingte Sichtbarkeit im Dashboard fehlen noch als sauberes Konzept.
-- **Die Firmware muss weiter gegen die aktuelle Dokumentation geprüft werden.** Besonders wichtig bleiben RTC-Alarm-Logik, Persistenz, HA-Entities und das Zusammenspiel zwischen Arduino-Auto-Mode und HA-Steuerung.
-- **Der reale Aufbau muss weiter hardwareseitig validiert werden.** Dazu gehören insbesondere AD5263-Start-/Shutdown-Verhalten, Relais-Sequenzierung, Versorgungskonzept und das Verhalten im Offline-Fallback.
+- Die finale Firmware-Implementierung muss noch vollständig gegen diese AD5263-Spezifikation verifiziert werden.
+- Der reale Aufbau muss hardwareseitig validiert werden, insbesondere Mapping, Grenzwerte, SHDN-Verhalten und Fault-Reaktion.
 
 ## Roadmap
 
-1. **AD5263-Dimmer im Realaufbau validieren**
-   - Widerstandsbereich zwischen `Dim+`/`Dim-` und Helligkeitsabbildung prüfen
-   - Start-/Shutdown-Sequenz mit Relais elektrisch und funktional absichern
-
-2. **Firmware gegen die aktuelle Spezifikation nachziehen**
-   - Codex gezielt gegen `SPEC.md`, `MODULES.md` und `entity-model.md` patchen lassen
-   - bestehende Inkonsistenzen im Code beseitigen
-
-3. **Home-Assistant-Frontend-Konzept ergänzen**
-   - Zeitdarstellung für `light_on_time` / `light_off_time`
-   - Kalibrierungsablauf für den Bodenfeuchtesensor
-   - Dashboard-Layout mit bedingter Sichtbarkeit je nach Modus und Bedienbarkeit
-
-4. **HA-Dashboard und Automationen umsetzen**
-   - Helpers, Templates, Scripts und Karten definieren
-   - Scheduler-Integration für den HA-Dimmauftrag vervollständigen
-
-5. **Gesamtsystem im realen Aufbau testen**
-   - Schaltverhalten, Sensorik, RPM, RTC-Alarme und Persistenz prüfen
-   - Verhalten bei WLAN-/MQTT-Ausfall validieren
-
-6. **Dokumentation und Code synchron halten**
-   - nach jeder größeren Hardware- oder Logikänderung zuerst die Anforderungen aktualisieren
-   - anschließend Codex per Patch-/Review-Workflow auf den bestehenden Code ansetzen
-
+1. AD5263-Mapping und Dimmergrenzen im realen Aufbau verifizieren
+2. Resume-State- und Fault-Strategie in der Firmware vollständig nachziehen
+3. End-to-End-Tests für Boot-Sequenz, Restart-Recovery und Fehlerpfade durchführen

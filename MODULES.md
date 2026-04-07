@@ -47,9 +47,17 @@ Zentrale Compile-Time-Konstanten.
 - `PIN_RTC_ALARM`
 - `PIN_FAN_SWITCH`
 - `PIN_FAN_TACH`
-- `PIN_LIGHT_DIM_SHDN` (optional)
+- `PIN_LIGHT_DIM_SHDN`
 - `PIN_LIGHT_POWER`
 - `PIN_SOIL_SENSOR`
+
+- `AD5263_I2C_ADDRESS = 0x2C`
+- `AD5263_AD0_TO_GND = true`
+- `AD5263_AD1_TO_GND = true`
+
+- `LIGHT_DIM_MIN_RDAC_EFFECTIVE`
+- `LIGHT_DIM_MAX_RDAC_EFFECTIVE`
+- `LIGHT_DIM_MAPPING_SPLIT_PERCENT = 50`
 
 - `DEFAULT_TEMP_HIGH_SET`
 - `DEFAULT_TEMP_HIGH_CLEAR`
@@ -71,7 +79,6 @@ Zentrale Compile-Time-Konstanten.
 - `MQTT_FALLBACK_TIMEOUT_MS = 600000`
 
 ## 3. Credentials.h
-
 ### Aufgabe
 Zentrale Ablage aller Zugangsdaten und installationsspezifischen IDs.
 
@@ -188,6 +195,7 @@ Schalten des Lüfters und Messen der RPM.
 - `fanManualState`
 - `fanEffectiveState`
 - `rpm`
+- `fanFault`
 - `tachPulseCount`
 
 ### API
@@ -212,6 +220,7 @@ Effektiver Fan-Zustand:
 - alle 30 s RPM berechnen
 - nur wenn Lüfter effektiv laufen soll
 - beim Stillstand ggf. RPM auf 0 setzen
+- wenn Lüfter effektiv an sein soll, aber nach Karenzzeit keine Tachopulse eintreffen: `fanFault` setzen
 
 ### Hardware-Hinweis Lüfter-Tacho
 Die textliche Doku und der Schaltplan sollen die verwendete 2N3904-Stufe dokumentieren:
@@ -228,16 +237,63 @@ Das Signal ist invertiert; der Code wählt entsprechend die Interrupt-Flanke.
 ## 7. LightController
 
 ### Aufgabe
-Steuerung von AD5263-Dimmer, Relais und Dimmaufträgen.
+Steuerung von AD5263-Dimmer, SHDN-Pin, Relais und Dimmaufträgen.
 
 ### Zentrale Verantwortung
 - klare Trennung zwischen Arduino-Auto und HA-Steuerung
-- Verwaltung des aktuellen Helligkeitszustands
+- Verwaltung des aktuellen Helligkeitszustands (`0..100 %`)
 - Ausführung von Dimmjobs
 - AD5263-Ansteuerung per I²C außerhalb von ISRs
-- zwei AD5263-Kanäle synchron für den Dimmerpfad setzen
+- zwei AD5263-Kanäle gemäß festem Signalpfad nutzen
+- SHDN-Steuerung mit sicherem Boot-Verhalten
 - hartes Relais-Aus separat
-- definierte Reihenfolge: AD5263-Widerstand setzen vor Relais-EIN
+
+### Verbindliche Hardwareannahmen
+- AD5263BRUZ50 im I²C-Modus (`DIS = 1`)
+- I²C-Adresse fest `0x2C` (`AD0 = GND`, `AD1 = GND`)
+- Pull-ups auf SDA/SCL nach `3,3 V`
+- SHDN liegt auf `PIN_LIGHT_DIM_SHDN` mit externem `10 kΩ` Pull-down
+- kein interner Pull-up auf SHDN
+- analoge Kanalverschaltung: `Dim+ -> W2 -> B2 -> A1 -> W1 -> Dim-`
+
+### Helligkeitsmapping (verbindlich)
+
+Referenzpunkte:
+
+- `0 %  => W2=255, W1=0`
+- `50 % => W2=0,   W1=0`
+- `100 % => W2=0,  W1=255`
+
+Zwischenbereiche:
+
+- `0..50 %`: zuerst Kanal 2 herunterregeln (W2)
+- `50..100 %`: danach Kanal 1 hochregeln (W1)
+
+Dimmergrenzen:
+
+- effektive untere/obere Grenzen werden über Firmware-Konstanten begrenzt
+- diese Grenzen sind nicht über HA konfigurierbar
+
+### Boot- und Ausschaltsequenz (verbindlich)
+
+Beim Start:
+
+1. AD5263 in `SHDN` halten
+2. Konfiguration laden
+3. Sollzustand aus persistierten Daten + Resume-State rekonstruieren
+4. RDAC-Widerstandswerte setzen
+5. `SHDN` freigeben
+6. erst danach Relais schließen
+
+Beim Ausschalten:
+
+1. Relais öffnen
+2. AD5263 in `SHDN`
+
+Hinweis:
+
+- Der AD5263 startet auf Midscale; ohne diese Reihenfolge droht ein falscher Helligkeitsstart.
+
 ### Wichtige interne Zustände
 - `lightAutoMode`
 - `currentBrightnessPercent`
@@ -253,6 +309,23 @@ Steuerung von AD5263-Dimmer, Relais und Dimmaufträgen.
   - Startzeit
   - Dauer
   - Quelle
+- `lightFault`
+- `lightFaultReason`
+
+### Resume-State (persistiert)
+Mindestens:
+
+- letzte effektive Helligkeit
+- `hardPowerOffActive`
+- Flag, ob HA-Dimmjob aktiv war
+- Job-Starthelligkeit
+- Job-Zielhelligkeit
+- Job-Dauer
+- Job-Startzeit (RTC-/Epoch-basiert)
+
+Wichtig:
+
+- Wiederaufnahme nach Neustart darf nicht nur auf `millis()` basieren.
 
 ### API
 - `void begin();`
@@ -270,6 +343,8 @@ Steuerung von AD5263-Dimmer, Relais und Dimmaufträgen.
 
 - `uint8_t getCurrentBrightness() const;`
 - `bool isPowerOn() const;`
+- `bool hasLightFault() const;`
+- `const char* getLightFaultReason() const;`
 
 ### Detailregeln
 
@@ -286,7 +361,7 @@ Steuerung von AD5263-Dimmer, Relais und Dimmaufträgen.
 - ein neuer Job ersetzt den alten Job derselben aktiven Steuerwelt
 - Helligkeit wird linear über die Laufzeit interpoliert
 - bei `durationMs == 0` sofort setzen
-- bei Ziel `0 %` darf am Ende optional Power-Off gesetzt werden, außer es handelt sich explizit um den separaten Hard-Power-Off-Schalter
+- bei Ziel `0 %` darf optional Power-Off gesetzt werden, außer es handelt sich explizit um den separaten Hard-Power-Off-Schalter
 
 #### Hard Power Off
 - schaltet nur das Relais
@@ -299,35 +374,26 @@ Der HA-Dimmjob wird verbindlich über folgende Entities ausgelöst:
 - `number.ha_dim_duration_minutes`
 - `button.start_ha_dim`
 
-Die Umsetzung im Controller erfolgt über:
+### Fehlerstrategie LightController
 
-```cpp
-void startHADimJob(uint8_t targetPercent, uint32_t durationMs);
-```
+- AD5263 beim Boot nicht erreichbar:
+  - Relais bleibt offen
+  - Licht bleibt aus
+  - `lightFault = true`
+  - `lightFaultReason = "ad5263_not_found"`
 
-Verbindliche Regeln:
-- nur ausführen, wenn `light_auto_mode == OFF`
-- bei `light_auto_mode == ON` ignorieren
-- Start immer vom aktuellen Ist-Zustand
-- neuer HA-Dimmauftrag ersetzt einen laufenden HA-Dimmauftrag
+- AD5263-Schreibfehler:
+  - Relais öffnen
+  - `lightFault = true`
+  - `lightFaultReason = "ad5263_write_failed"`
 
-### Hardware-Hinweis Licht-Dimmer
-Die textliche Doku und der Schaltplan sollen die AD5263-Lösung dokumentieren:
-
-- AD5263BRUZ50 als digital einstellbarer Widerstand zwischen `Dim+` und `Dim-`
-- zwei Potikanäle/Wiper in Reihe für den erforderlichen Widerstandsbereich
-- I²C-Ansteuerung über `SDI/SDA` und `CLK/SCL`, I²C-Modus über `DIS = 1`
-- `CS/AD0` und `RES/AD1` als Adressbits im I²C-Modus
-- keine galvanische Trennung im Dimmerpfad
-
-Verbindliche Reihenfolge im Controller:
-
-1. Soll-Widerstand auf AD5263 setzen
-2. Relais (`PIN_LIGHT_POWER`) schließen
-3. Beim Ausschalten Relais öffnen
-4. Optional AD5263 in `SHDN`, solange Relais offen ist
+- AD5263-Readback-Mismatch:
+  - Relais öffnen
+  - `lightFault = true`
+  - `lightFaultReason = "ad5263_readback_mismatch"`
 
 ## 8. MoistureSensor
+
 ### Aufgabe
 Lesen und Umrechnen des Bodenfeuchtesensors.
 
@@ -510,7 +576,26 @@ Die Werte für:
 - `ha_dim_duration_minutes`
 
 sind **nicht persistent**, sondern nur Laufzeit-/Befehlsparameter.
+- Ein laufender HA-Dimmjob kann über den persistierten Resume-State (Start/Ziel/Dauer/Startzeit) nach Neustart rekonstruierbar gemacht werden.
 
+### Fehlerstatus auf Systemebene
+Die Firmware-Dokumentation nutzt folgende Fault-States:
+
+- `light_fault`
+- `fan_fault`
+- `sht_fault`
+- `rtc_fault`
+- `eeprom_fault`
+
+Nicht verwenden:
+
+- `sensor_fault`
+- `system_fault`
+- `last_fault_code`
+
+Zusätzlicher Textstatus:
+
+- `light_fault_reason`
 ## 12. Smaeenhouse.ino
 
 ### Aufgabe
@@ -586,4 +671,9 @@ Wichtig:
    - Licht aus
    - oder internen Auto-Mode aktivieren
 3. lokale Funktionen laufen weiter
+
+
+
+
+
 

@@ -4,7 +4,7 @@
 
 // Pin mapping (Arduino Nano 33 IoT)
 // Tach input is conditioned to 3.3V logic via documented 2N3904 stage.
-// Light PWM drives the documented RC + PC817 dim path; light power pin drives the relay module.
+// Final hardware spec uses AD5263 + relay. Pin 4 is reserved for AD5263 SHDN control (legacy constant name remains until firmware refactor).
 constexpr uint8_t PIN_SHT_ALERT = 7;
 constexpr uint8_t PIN_RTC_ALARM = 10;
 constexpr uint8_t PIN_FAN_SWITCH = 2;
@@ -23,7 +23,7 @@ constexpr uint32_t NTP_RETRY_INTERVAL_MS = 60000UL;
 constexpr uint32_t MQTT_FALLBACK_TIMEOUT_MS = 600000UL;  // 10 minutes
 constexpr uint32_t NTP_RESYNC_INTERVAL_MS = 86400000UL;  // 24 hours
 
-// Light PWM behavior
+// Legacy PWM dim constants (kept for transition until AD5263 firmware mapping is implemented)
 constexpr uint8_t PWM_FULL_ON = 0;
 constexpr uint8_t PWM_DARKEST_STABLE = 120;
 constexpr uint8_t PWM_OFF_THRESHOLD = 160;
@@ -58,3 +58,4 @@ constexpr bool DEFAULT_LIGHT_AUTO_MODE = true;
 constexpr int16_t DEFAULT_SOIL_AIR = 3000;
 constexpr int16_t DEFAULT_SOIL_WATER = 1500;
 constexpr int16_t DEFAULT_SOIL_DEPTH_MM = 50;
+

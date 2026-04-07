@@ -41,12 +41,12 @@ Der Schaltplan im Projektordner ist die Primärreferenz und soll in den Textdoku
 - RTC Alarm (SQW/INT): Pin 10
 - Fan Switch: Pin 2
 - Fan Tach: Pin A1
-- Light Dimmer: I²C (SDA/SCL)
 - Light Power Relay: Pin 3
+- Light Dim SHDN: Pin 4
+- Light Dimmer: I²C (SDA/SCL, AD5263 @ 0x2C)
 - Soil Moisture: Pin A0
 
 ## 4. Temperatur / Luftfeuchtigkeit / SHT3x
-
 ### 4.1 Messung
 Der SHT3x misst periodisch Temperatur und Luftfeuchtigkeit.
 
@@ -128,14 +128,64 @@ Das resultierende Signal ist invertiert.
 ### 6.1 Grundstruktur
 Das Licht hat zwei getrennte Steuerpfade:
 
-- AD5263-Dimmer als variabler Widerstand zwischen `Dim+` und `Dim-`
+- AD5263-Dimmerpfad als variabler Widerstand zwischen `Dim+` und `Dim-`
 - hartes Relais-Aus der 230-V-Zuleitung
 
-### 6.2 Helligkeits-/Widerstandsabbildung
-Die Firmware arbeitet weiterhin mit Helligkeitssollwerten (0 bis 100 %).
-Die Hardwareebene bildet diese Sollwerte auf AD5263-Widerstandswerte ab.
+### 6.2 Verbindliche AD5263-Hardware
 
-### 6.3 Zwei Steuerwelten
+- Bauteil: `AD5263BRUZ50`
+- Montage über TSOPP24-Adapter
+- Versorgung:
+  - `VDD = 12 V`
+  - `VSS = GND`
+  - `VL/VLOGIC = 3,3 V`
+- Abblockung:
+  - `100 nF` oder `1 µF` zwischen `VDD` und `VSS`
+  - `100 nF` zwischen `VL` und `GND`
+- keine galvanische Trennung im Dimmerpfad
+
+### 6.3 I²C-Betrieb und Adresse
+
+- `DIS = 1` für I²C-Betrieb
+- `SDI/SDA` = SDA
+- `CLK/SCL` = SCL
+- `CS/AD0` und `RES/AD1` sind die I²C-Adressbits
+- `AD0 = GND`
+- `AD1 = GND`
+- feste 7-Bit-I²C-Adresse: `0x2C`
+- Pull-ups der I²C-Leitungen auf `3,3 V`
+
+### 6.4 Verbindliche analoge Kanalverschaltung
+
+Verwendet werden ausschließlich Kanal 1 und Kanal 2 des AD5263.
+
+Verbindlicher Signalpfad:
+
+- `Dim+ -> W2 -> B2 -> A1 -> W1 -> Dim-`
+
+### 6.5 Helligkeitsmapping auf RDAC-Werte
+
+Die Firmware arbeitet logisch weiter mit `0..100 %` Helligkeit und mappt intern auf RDAC-Werte.
+
+Verbindliche Punkte:
+
+- `0 % = W2 255, W1 0`
+- `50 % = W2 0, W1 0`
+- `100 % = W2 0, W1 255`
+
+Verbindliche Zwischenlogik:
+
+- von `0 %` bis `50 %` wird zuerst Kanal 2 heruntergeregelt
+- von `50 %` bis `100 %` wird danach Kanal 1 hochgeregelt
+
+### 6.6 Widerstandsgrenzen
+
+- Zielbereich am Lichteingang: nominell ca. `0..100 kΩ`
+- praktisch durch den AD5263BRUZ50 mit zwei Kanälen im Rheostat-Betrieb angenähert
+- tatsächlich genutzte untere/obere Limits werden als projektinterne Firmware-Konstanten gesetzt
+- diese Dimmer-Grenzwerte sind **nicht** über HA konfigurierbar
+
+### 6.7 Zwei Steuerwelten
 Es muss sauber unterschieden werden zwischen:
 
 - **Arduino Auto-Schedule**
@@ -143,7 +193,7 @@ Es muss sauber unterschieden werden zwischen:
 
 Diese beiden dürfen sich nicht gleichzeitig steuern.
 
-### 6.4 Licht-Modi
+### 6.8 Licht-Modi
 
 #### Modus A: Arduino Auto-Mode ON
 Wenn `light_auto_mode = ON`:
@@ -162,37 +212,7 @@ Wenn `light_auto_mode = OFF`:
 - manuelle HA-Befehle dürfen das Licht wie ein normales dimmbares Licht steuern
 - Ein/Aus-Schalter und Brightness-Slider sind aktiv
 
-### 6.5 Arduino Auto-Schedule
-Der Arduino speichert:
-
-- `dim on time`
-- `dim off time`
-- `DEFAULT_LIGHT_DIM_MINUTES`
-
-Diese Werte sind persistent gespeichert und aus HA veränderbar.
-
-Im Auto-Mode werden diese Werte sowohl für die Übergänge als auch für die Programmierung der DS3231-Alarmregister genutzt.
-
-### 6.6 HA-Schedule
-Wenn `light_auto_mode = OFF`, kann HA das Licht per eigenem Zeitplan steuern.
-
-Dafür braucht die Firmware einen Befehl mit mindestens:
-
-- Zielhelligkeit
-- Dauer bis zum Erreichen
-
-Die Firmware dimmt immer vom aktuellen Ist-Zustand auf den neuen Zielwert.
-
-### 6.7 Manuelle Lichtsteuerung im HA-Modus
-Wenn `light_auto_mode = OFF`:
-
-- Brightness-Slider wirkt direkt
-- Ein/Aus-Schalter wirkt direkt
-- zusätzliche zeitgesteuerte HA-Dim-Befehle wirken ebenfalls
-
-Wenn zwischen zwei HA-Schedule-Events manuell eingegriffen wird, bleibt die Änderung aktiv, bis der nächste HA-Schedule-Trigger einen neuen Zielwert vorgibt.
-
-### 6.8 Dimmverhalten
+### 6.9 Dimmverhalten
 Es gibt **keine globale feste Dimmrampe mehr für alle Fälle**.
 
 Stattdessen gilt:
@@ -201,51 +221,45 @@ Stattdessen gilt:
 - für HA-Schedule-Befehle wird die vom Befehl mitgelieferte Dauer verwendet
 - für rein manuelle Slider-/Schalter-Bedienung im HA-Modus darf das Licht wie ein normales dimmbares Licht unmittelbar reagieren
 
-### 6.9 Hard Power Off
+### 6.10 Hard Power Off
 Es gibt zusätzlich einen separaten HA-Schalter/Befehl für hartes Ausschalten.
 
 Dieser soll:
+
 - nur das Relais sofort schalten
 - den internen Dimmerzustand beibehalten
 
 Dieser Befehl ist nur im HA-gesteuerten Betrieb relevant.
 
-### 6.10 Hardwareanforderung Lichtdimmer (AD5263BRUZ50)
-Der Dimmerpfad wird als reiner Widerstand zwischen `Dim+` und `Dim-` realisiert.
+### 6.11 SHDN-Nutzung
 
-Verbindliche Anforderungen:
+- `SHDN` wird aktiv genutzt und dafür Pin 4 verwendet
+- an `SHDN` ist verbindlich ein externer `10 kΩ` Pull-down nach GND vorzusehen
+- wegen dieses externen Pull-downs wird kein interner Pull-up für `SHDN` verwendet
+- der AD5263 soll während Reset/Boot standardmäßig im Shutdown bleiben
 
-- Zielbereich am Lichteingang: ca. `1 kΩ ... 100 kΩ`
-- Umsetzung mit AD5263BRUZ50 über zwei Potikanäle/Wiper in Reihe
-- Ansteuerung des AD5263 per I²C
-- keine galvanische Trennung im Dimmerpfad
-- keine feste GND-Referenz im Dimmerpfad dokumentieren
+### 6.12 Start- und Ausschaltreihenfolge
 
-Verbindliche AD5263-Versorgung:
+Wichtig:
 
-- `VDD` an `12 V`
-- `VSS` an `GND`
-- `VL` an `3,3 V` Logikversorgung des Nano 33 IoT
-- `100 nF` oder `1 µF` zwischen `VDD` und `VSS`
-- `100 nF` zwischen `VL` und `GND`
+- der AD5263 startet bei Power-on auf Midscale
+- ohne Sequenz entsteht beim Relais-Zuschalten sonst ein falscher Helligkeitsstart
 
-Verbindliche I²C-Pinrollen am AD5263 (gemäß Datenblatt):
+Verbindliche Startreihenfolge:
 
-- `DIS = 1` aktiviert I²C-Modus
-- `SDI/SDA` ist die I²C-Datenleitung
-- `CLK/SCL` ist die I²C-Taktleitung
-- `CS/AD0` und `RES/AD1` dienen als I²C-Adressbits
-- Pull-ups der I²C-Leitungen auf `3,3 V` Logikniveau
+1. AD5263 bleibt beim Boot zunächst in `SHDN`
+2. Konfiguration laden
+3. Sollzustand rekonstruieren
+4. Widerstandswert setzen
+5. `SHDN` freigeben
+6. erst danach Relais schließen
 
-Shutdown-/Startverhalten (verbindlich):
+Verbindliche Ausschaltreihenfolge:
 
-- Der AD5263 startet in Mittelstellung
-- Vor dem Schließen des Relais muss der gewünschte Widerstandswert gesetzt werden
-- Erst danach darf das Relais eingeschaltet werden
-- Beim Ausschalten wird zuerst das Relais geöffnet
-- Danach kann der AD5263 im Zustand „Relais offen“ in `SHDN` gesetzt werden
+1. Relais öffnen
+2. danach AD5263 in `SHDN`
 
-### 6.11 Race-Condition- und Logikregeln fürs Licht
+### 6.13 Race-Condition- und Logikregeln fürs Licht
 1. Es gibt immer genau **eine aktive Lichtsteuerquelle**:
    - Arduino Auto
    - oder HA
@@ -258,8 +272,25 @@ Shutdown-/Startverhalten (verbindlich):
 
 5. Beim Moduswechsel wird ein laufender Dimmauftrag beendet; die neue Steuerquelle übernimmt erst mit ihrem nächsten gültigen Befehl/Event.
 
-## 7. Licht-Zeitplan über DS3231-Alarme
+### 6.14 Fehlerstrategie Lichtpfad
 
+- Wenn AD5263 beim Boot nicht erreichbar ist:
+  - Relais bleibt offen
+  - Licht bleibt aus
+  - `light_fault = true`
+  - `light_fault_reason = ad5263_not_found`
+
+- Wenn AD5263 im Betrieb ausfällt oder ein Schreib-/Readback-Fehler erkannt wird:
+  - Relais öffnen
+  - `light_fault = true`
+  - `light_fault_reason` entsprechend setzen
+
+- Vorgesehene Textwerte für `light_fault_reason`:
+  - `ad5263_not_found`
+  - `ad5263_write_failed`
+  - `ad5263_readback_mismatch`
+
+## 7. Licht-Zeitplan über DS3231-Alarme
 ### 7.1 Arduino-interner Zeitplan
 Der Arduino speichert intern:
 
@@ -443,6 +474,7 @@ Für den HA-Schedule-Dimmjob wird die Bedienung fest so modelliert:
 - `button.start_ha_dim`
 
 Verbindliches Verhalten:
+
 - Diese drei Entities dienen ausschließlich dem **HA-Schedule-Betrieb**
 - Sie sind nur wirksam, wenn `light_auto_mode = OFF`
 - Beim Druck auf `button.start_ha_dim` startet der Arduino einen Dimmauftrag:
@@ -450,7 +482,11 @@ Verbindliches Verhalten:
   - auf `ha_dim_target_percent`
   - innerhalb von `ha_dim_duration_minutes`
 - Wenn `light_auto_mode = ON`, wird dieser Dimmauftrag ignoriert
-- Diese Werte müssen **nicht persistent** gespeichert werden
+
+Persistenzregel:
+
+- Die Number-Entities bleiben Laufzeit-/Befehlsparameter und sind keine dauerhafte Konfiguration.
+- Ist beim Neustart ein HA-Dimmjob relevant, wird dessen Wiederaufnahme über den `Light Resume State` rekonstruiert (Start/Ziel/Dauer/Startzeit auf RTC-/Epoch-Basis), nicht über `millis()`.
 
 ### 10.5 Zustandswiederherstellung
 Separate Sensoren für Licht-Ist-Helligkeit oder Lichtmodus sind nicht erforderlich, solange:
@@ -498,24 +534,43 @@ Andere lokale Funktionen wie Sensorik, RTC, EEPROM und Lüfterlogik laufen weite
 
 ### 12.1 Speicherort
 Verwendet wird:
+
 - `AT24C32` auf dem RTC-Modul
 - Zugriff über **JC_EEPROM**
 
-### 12.2 Zu speichernde Daten
-Mindestens:
-- Temp-/Hum-Thresholds
-- Arduino-Lichtschedule
-- Standard-Dimmdauer
-- Auto-Mode-Flags
-- Soil calibration
-- Fallback-Lichtverhalten
-- weitere dauerhafte Konfigurationswerte
+### 12.2 Bereits vorhandene persistente Konfiguration (weiterverwenden)
+Bereits vorhanden und **nicht** doppelt neu anzulegen:
 
-### 12.3 Schreibverhalten
-Nur schreiben, wenn Werte sich wirklich geändert haben.
+- `lightAutoMode`
+- `fanAutoMode`
+- `lightOnTimeMinutes`
+- `lightOffTimeMinutes`
+- `defaultLightDimMinutes`
+- `lightFallbackMode`
+- weitere Sensor-/Soil-/Threshold-Werte
+
+### 12.3 Light Resume State (neu ergänzen)
+Zusätzlich wird ein kleiner Resume-State für die Sollzustandsrekonstruktion benötigt, mindestens mit:
+
+- letzter effektiver Helligkeit
+- `hardPowerOffActive`
+- Kennzeichen, ob ein HA-Dimmjob aktiv war
+- Starthelligkeit
+- Zielhelligkeit
+- Job-Dauer
+- Job-Startzeit auf RTC-/Epoch-Basis
+
+### 12.4 Zeitbasis für Wiederaufnahme
+
+- `millis()` reicht für Neustart-Wiederaufnahme nicht aus.
+- Für eine korrekte Rekonstruktion nach Neustart ist eine RTC-/Epoch-basierte Zeitreferenz erforderlich.
+
+### 12.5 Schreibverhalten
+
+- Nur schreiben, wenn Werte sich wirklich geändert haben.
+- Resume-State-Schreibvorgänge so auslegen, dass unnötige EEPROM-Last vermieden wird.
 
 ## 13. Architektur
-
 ### 13.1 Nicht-blockierend
 - keine langen `delay()`
 - Steuerung über `millis()`
@@ -530,8 +585,39 @@ Nur schreiben, wenn Werte sich wirklich geändert haben.
 - NetworkManager: WiFi/MQTT + Reconnect
 - Persistence: externes EEPROM
 
-## 14. Übernommener vorhandener Code
+### 13.3 Fault-States (verbindlich)
+Folgende Fault-States sind in der Firmware-Dokumentation verbindlich:
 
+- `light_fault`
+- `fan_fault`
+- `sht_fault`
+- `rtc_fault`
+- `eeprom_fault`
+
+Nicht verwenden:
+
+- `sensor_fault`
+- `system_fault`
+- `last_fault_code`
+
+Zusätzlich als Textzustand:
+
+- `light_fault_reason`
+
+Vorgesehene Inhalte von `light_fault_reason`:
+
+- `ad5263_not_found`
+- `ad5263_write_failed`
+- `ad5263_readback_mismatch`
+
+Verbindliche Verhaltensregeln:
+
+- AD5263 beim Boot nicht erreichbar: Relais offen, Licht aus, `light_fault` und `light_fault_reason` setzen.
+- AD5263-Fehler im Betrieb: Relais öffnen, `light_fault` setzen, `light_fault_reason` aktualisieren.
+- Lüfterfehler: Wenn der Lüfter effektiv eingeschaltet sein soll, aber nach Karenzzeit keine Tachopulse anliegen, `fan_fault` setzen.
+- Für Relais und Bodenfeuchtesensor keine starke Hardware-Selbstdiagnose behaupten, da kein echter Rückkanal vorhanden ist.
+
+## 14. Übernommener vorhandener Code
 ### 14.1 SHTa
 Übernommen werden soll insbesondere:
 
@@ -551,4 +637,7 @@ Nur schreiben, wenn Werte sich wirklich geändert haben.
 
 ### 14.2 Alert-Struktur
 - `alertTriggers[]` bleibt als Statuscontainer erhalten
+
+
+
 
