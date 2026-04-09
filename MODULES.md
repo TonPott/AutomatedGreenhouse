@@ -3,21 +3,22 @@
 ## 1. Gesamtarchitektur
 
 Das Projekt wird als Arduino-Sketchordner mit `.ino`, `.h` und `.cpp` aufgebaut.
+Der Hauptsketch liegt unter `Smaeenhouse/Smaeenhouse.ino`; die zugehörigen Modul- und Konfigurationsdateien liegen im Ordner `Smaeenhouse/`.
 
 Empfohlene Dateien:
 
-- `Smaeenhouse.ino`
-- `Config.h`
-- `Credentials.h`
-- `PersistentConfig.h/.cpp`
-- `RtcEepromStorage.h/.cpp`
-- `SHTa.h/.cpp`
-- `FanController.h/.cpp`
-- `LightController.h/.cpp`
-- `MoistureSensor.h/.cpp`
-- `ClockService.h/.cpp`
-- `NetworkManager.h/.cpp`
-- `HAInterface.h/.cpp`
+- `Smaeenhouse/Smaeenhouse.ino`
+- `Smaeenhouse/Config.h`
+- `Smaeenhouse/Credentials.h` (lokal, nicht ins Repo committen)
+- `Smaeenhouse/PersistentConfig.h/.cpp`
+- `Smaeenhouse/RtcEepromStorage.h/.cpp`
+- `Smaeenhouse/SHTa.h/.cpp`
+- `Smaeenhouse/FanController.h/.cpp`
+- `Smaeenhouse/LightController.h/.cpp`
+- `Smaeenhouse/MoistureSensor.h/.cpp`
+- `Smaeenhouse/ClockService.h/.cpp`
+- `Smaeenhouse/NetworkManager.h/.cpp`
+- `Smaeenhouse/HAInterface.h/.cpp`
 
 ### Grundprinzip
 Jedes Modul soll möglichst diese Struktur haben:
@@ -55,9 +56,13 @@ Zentrale Compile-Time-Konstanten.
 - `AD5263_AD0_TO_GND = true`
 - `AD5263_AD1_TO_GND = true`
 
-- `LIGHT_DIM_MIN_RDAC_EFFECTIVE`
-- `LIGHT_DIM_MAX_RDAC_EFFECTIVE`
-- `LIGHT_DIM_MAPPING_SPLIT_PERCENT = 50`
+- Kanalspezifische effektive RDAC-Grenzen für die verwendeten Dimmerkanäle (`W2` und `W1`), z. B.:
+  - `LIGHT_DIM_W2_RDAC_MIN_EFFECTIVE`
+  - `LIGHT_DIM_W2_RDAC_MAX_EFFECTIVE`
+  - `LIGHT_DIM_W1_RDAC_MIN_EFFECTIVE`
+  - `LIGHT_DIM_W1_RDAC_MAX_EFFECTIVE`
+- `LIGHT_DIM_MAPPING_SPLIT_PERCENT = 50` (Split zwischen W2-Phase und W1-Phase)
+- Hinweis: Die Bezeichner sind dokumentativ beispielhaft; verbindlich ist die getrennte Begrenzung pro Kanal.
 
 - `DEFAULT_TEMP_HIGH_SET`
 - `DEFAULT_TEMP_HIGH_CLEAR`
@@ -707,3 +712,4 @@ Wichtig:
    - Licht aus
    - oder internen Auto-Mode aktivieren
 3. lokale Funktionen laufen weiter
+
