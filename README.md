@@ -38,7 +38,7 @@ Wenn du das Projekt zum ersten Mal siehst, beginne am besten in dieser Reihenfol
 1. **Schaltplan im Projektordner** ansehen
 2. `SPEC.md` lesen – fachliche Anforderungen
 3. `MODULES.md` lesen – technische Struktur
-4. `entity-model.md` lesen – Home-Assistant-Entities
+4. `docs/entity-model.md` lesen – Home-Assistant-Entities
 5. `libraries.txt` lesen – benötigte Bibliotheken
 
 Der Schaltplan im Projektordner ist die Primärreferenz für die Verdrahtung.
@@ -102,7 +102,7 @@ Verbindlicher I²C-Betrieb:
 
 Verbindliche analoge Kanalverschaltung:
 
-- Verwendet werden Kanal 1 und Kanal 2
+- Verwendet werden Kanal 1 und Kanal 2 (`W` = Wiper, `A/B` = Enden der Widerstandsbahn)
 - Signalpfad: `Dim+ -> W2 -> B2 -> A1 -> W1 -> Dim-`
 
 Helligkeitsmapping (Firmware-Konzept):
@@ -115,16 +115,16 @@ Helligkeitsmapping (Firmware-Konzept):
 - `0..50 %`: zuerst Kanal 2 herunterregeln
 - `50..100 %`: danach Kanal 1 hochregeln
 
-Widerstandsgrenzen:
+Widerstandsgrenzen (präzisiert):
 
-- Zielbereich am Lichteingang nominell ca. `0..100 kΩ`
+- angestrebter Bereich am Lichteingang bis ca. `100 kΩ`; ein idealer `0 Ω`-Endpunkt ist physikalisch nicht als perfekter Fixwert garantiert
 - praktisch mit zwei AD5263-Kanälen im Rheostat-Betrieb angenähert
 - konkrete untere/obere Limits werden später über Firmware-Konstanten begrenzt
 - diese Limits sind **nicht** über HA konfigurierbar
 
 ### 3. SHDN und Schaltreihenfolge
 
-`SHDN` wird aktiv verwendet und liegt auf Pin `4`.
+`SHDN` wird aktiv verwendet und liegt auf Pin `4` (hält den Digipot beim Boot in einem sicheren Zustand).
 Verbindlich vorgesehen ist ein externer `10 kΩ` Pull-down nach GND.
 Durch diesen externen Pull-down wird kein interner Pull-up für `SHDN` verwendet.
 
@@ -151,10 +151,24 @@ Verbindliche Ausschaltreihenfolge:
 
 - Wenn AD5263 beim Boot nicht erreichbar ist: Relais bleibt offen, Licht bleibt aus, `light_fault` und `light_fault_reason` werden gesetzt.
 - Wenn AD5263 im Betrieb ausfällt oder ein Schreib-/Readback-Fehler erkannt wird: Relais öffnen, `light_fault` setzen, `light_fault_reason` aktualisieren.
+- Fault-Flags werden in HA als `binary_sensor` publiziert:
+  - `binary_sensor.light_fault`
+  - `binary_sensor.fan_fault`
+  - `binary_sensor.sht_fault`
+  - `binary_sensor.rtc_fault`
+  - `binary_sensor.eeprom_fault`
+- Die textuelle Diagnose wird separat als `sensor.light_fault_reason` publiziert.
 - Typische Werte für `light_fault_reason`:
   - `ad5263_not_found`
   - `ad5263_write_failed`
   - `ad5263_readback_mismatch`
+
+Gestufte Readback-/Plausibilitätsstrategie (rate-limited):
+
+1. Beim Boot, vor `SHDN`-Freigabe und vor Relais-EIN: RDAC-Zielwerte schreiben und einmal per Readback prüfen.
+2. Bei diskreten Kommandos (manueller Sprung, Arduino-Dimmjob-Start, HA-Dimmjob-Start, Resume-State-Restore): Write, optional ein kurzer Retry, dann Readback.
+3. Während langer Dimmfahrten kein Readback auf jedem Interpolationsschritt; stattdessen am Rampenende verifizieren.
+4. Bei I²C-NACK, Schreibfehler oder Readback-Mismatch: ein kurzer Retry, danach bei weiterem Fehler Relais öffnen, `light_fault` setzen, `light_fault_reason` setzen.
 
 ### 5. Lüfter-Tacho-Signalaufbereitung
 
@@ -178,15 +192,15 @@ Siehe `libraries.txt`.
 - `SPEC.md` – fachliche Anforderungsliste
 - `MODULES.md` – technische Modulspezifikation
 - `AGENTS.md` – Arbeitsregeln für Codex / KI-Agenten
-- `entity-model.md` – Home-Assistant-Entity-Modell
+- `docs/entity-model.md` – Home-Assistant-Entity-Modell
 - `Credentials.example.h` – Vorlage für die lokalen Zugangsdaten
 
 ## Nutzung mit Arduino IDE
 
 Das Projekt ist bewusst als klassischer Arduino-Sketchordner gedacht:
 
-- `Smaeenhouse.ino`
-- alle `.h/.cpp` im gleichen Ordner
+- `Smaeenhouse/Smaeenhouse.ino`
+- alle `.h/.cpp` im Ordner `Smaeenhouse/`
 - keine PlatformIO-Pflicht
 
 Unter `module-sketches/` liegen zusätzliche Test-Sketche, mit denen sich einzelne Module getrennt auf dem Board prüfen lassen.
@@ -223,7 +237,7 @@ Die MQTT-/HA-Integration basiert auf:
 - Arduino Home Assistant Integration von Dawid Chyrzynski
   https://github.com/dawidchyrzynski/arduino-home-assistant
 
-Weitere Details stehen in `entity-model.md`.
+Weitere Details stehen in `docs/entity-model.md`.
 
 ## Offene Probleme
 

@@ -111,7 +111,14 @@ Eine zentrale Struct, z. B. `PersistentConfigData`, mit:
 - `lightAutoMode`
 - Fallback-Lichtverhalten
 - Soil Air/Water/Depth
-- optional gespeicherte letzte manuelle Lichthelligkeit
+- Resume-State für Lichtwiederaufnahme (separate Teilstruktur oder klar abgegrenzter Block) mit:
+  - letzter effektiver Helligkeit
+  - `hardPowerOffActive`
+  - Kennzeichen, ob ein HA-Dimmjob aktiv war
+  - Job-Starthelligkeit
+  - Job-Zielhelligkeit
+  - Job-Dauer
+  - Job-Startzeit auf RTC-/Epoch-Basis
 - Versionsnummer
 - CRC/Validierung
 
@@ -137,6 +144,8 @@ Eine zentrale Struct, z. B. `PersistentConfigData`, mit:
 ### Technische Konsequenz:
 - Der EEPROM-Wrapper bzw. die Persistenzklasse initialisiert `JC_EEPROM` direkt mit der bekannten Geräteadresse.
 - Fehlerbehandlung bezieht sich auf Kommunikationsfehler oder ungültige Daten, nicht auf Adresssuche.
+- Keine doppelte Neuanlage bereits vorhandener Konfigurationswerte; Persistenz gezielt um Resume-State ergänzen.
+- Für Neustart-Wiederaufnahme reicht `millis()` nicht; Resume-State benötigt RTC-/Epoch-Zeitbasis.
 
 ## 5. SHTa
 
@@ -376,18 +385,42 @@ Der HA-Dimmjob wird verbindlich über folgende Entities ausgelöst:
 
 ### Fehlerstrategie LightController
 
+Verbindliche Readback-/Plausibilitätsstrategie (gestuft und rate-limited):
+
+1. Bootphase vor `SHDN`-Freigabe und vor Relais-EIN:
+   - AD5263 ansprechen
+   - definierte W1/W2-RDAC-Werte schreiben
+   - einmal Readback prüfen
+   - nur bei konsistentem Ergebnis fortfahren
+
+2. Bei diskreten Kommandos:
+   - manueller Helligkeitssprung
+   - Start Arduino-Dimmjob
+   - Start HA-Dimmjob
+   - Restore aus Resume-State
+   jeweils:
+   - Write
+   - optional 1 kurzer Retry
+   - Readback prüfen
+
+3. Bei langen Dimmrampen:
+   - kein Readback auf jedem Interpolationsschritt
+   - Readback-Verifikation am Rampenende
+
+Fehlerreaktion (verbindlich):
+
 - AD5263 beim Boot nicht erreichbar:
   - Relais bleibt offen
   - Licht bleibt aus
   - `lightFault = true`
   - `lightFaultReason = "ad5263_not_found"`
 
-- AD5263-Schreibfehler:
+- AD5263-Schreibfehler nach Retry:
   - Relais öffnen
   - `lightFault = true`
   - `lightFaultReason = "ad5263_write_failed"`
 
-- AD5263-Readback-Mismatch:
+- AD5263-Readback-Mismatch nach Retry:
   - Relais öffnen
   - `lightFault = true`
   - `lightFaultReason = "ad5263_readback_mismatch"`
@@ -538,6 +571,8 @@ Das Modul sollte auf andere Module zugreifen können, z. B. per Referenz im Kons
 - `HADevice`
 - `HAMqtt`
 - `HASensorNumber` für Temperatur, Feuchte, Soil%, SoilRaw, RPM
+- `HABinarySensor` für `light_fault`, `fan_fault`, `sht_fault`, `rtc_fault`, `eeprom_fault`
+- `HASensor` (Text) für `light_fault_reason`
 - `HASwitch` für Fan, FanAuto, LightAuto, HardPowerOff, Fallback-Verhalten
 - `HALight` für Grow-Light
 - `HANumber` für Thresholds, Zeiten, Dimmdauer, Soil-Kalibrierung
@@ -593,9 +628,10 @@ Nicht verwenden:
 - `system_fault`
 - `last_fault_code`
 
-Zusätzlicher Textstatus:
+Zusätzlicher Textstatus (als Text-`sensor`):
 
 - `light_fault_reason`
+
 ## 12. Smaeenhouse.ino
 
 ### Aufgabe
@@ -671,9 +707,3 @@ Wichtig:
    - Licht aus
    - oder internen Auto-Mode aktivieren
 3. lokale Funktionen laufen weiter
-
-
-
-
-
-

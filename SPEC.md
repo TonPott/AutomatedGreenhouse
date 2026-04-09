@@ -274,21 +274,37 @@ Verbindliche Ausschaltreihenfolge:
 
 ### 6.14 Fehlerstrategie Lichtpfad
 
-- Wenn AD5263 beim Boot nicht erreichbar ist:
-  - Relais bleibt offen
-  - Licht bleibt aus
-  - `light_fault = true`
-  - `light_fault_reason = ad5263_not_found`
+Verbindliche Readback-/Plausibilitätsstrategie (gestuft und rate-limited):
 
-- Wenn AD5263 im Betrieb ausfällt oder ein Schreib-/Readback-Fehler erkannt wird:
-  - Relais öffnen
-  - `light_fault = true`
-  - `light_fault_reason` entsprechend setzen
+1. Beim Boot, vor `SHDN`-Freigabe und vor Relais-EIN:
+   - AD5263 per I²C ansprechen
+   - definierte RDAC-Werte für W1/W2 schreiben
+   - einmal per Readback prüfen
+   - nur bei konsistentem Ergebnis in die Einschaltsequenz gehen
 
-- Vorgesehene Textwerte für `light_fault_reason`:
-  - `ad5263_not_found`
-  - `ad5263_write_failed`
-  - `ad5263_readback_mismatch`
+2. Bei diskreten Kommandos:
+   - manuellem Helligkeitssprung
+   - Start eines Arduino-Dimmjobs
+   - Start eines HA-Dimmjobs
+   - Wiederherstellung aus Resume-State
+   jeweils:
+   - Write
+   - optional 1 kurzer Retry
+   - Readback prüfen
+
+3. Während langer Dimmfahrten:
+   - kein Readback auf jedem Interpolationsschritt
+   - Readback-Verifikation am Rampenende
+
+4. Fehlerbehandlung:
+   - bei I²C-NACK / keiner Antwort, Schreibfehler oder Readback-Mismatch: 1 kurzer Retry
+   - bei weiterem Fehler: Relais öffnen, `light_fault = true`, `light_fault_reason` setzen
+
+Vorgesehene Textwerte für `light_fault_reason`:
+
+- `ad5263_not_found`
+- `ad5263_write_failed`
+- `ad5263_readback_mismatch`
 
 ## 7. Licht-Zeitplan über DS3231-Alarme
 ### 7.1 Arduino-interner Zeitplan
@@ -431,23 +447,36 @@ Das Arduino erscheint als ein HA-Gerät.
 ### 10.3 HA-Entitäten
 
 #### Sensoren
-- Temperatur
-- Luftfeuchtigkeit
-- Bodenfeuchte %
-- Bodenfeuchte Rohwert
-- Lüfter RPM
+- `temperature`
+- `humidity`
+- `soil_moisture`
+- `soil_raw`
+- `fan_rpm`
+- `light_fault`
+- `fan_fault`
+- `sht_fault`
+- `rtc_fault`
+- `eeprom_fault`
+- `light_fault_reason`
+
+Typzuordnung in HA:
+
+- `binary_sensor.light_fault`
+- `binary_sensor.fan_fault`
+- `binary_sensor.sht_fault`
+- `binary_sensor.rtc_fault`
+- `binary_sensor.eeprom_fault`
+- `sensor.light_fault_reason` (Text)
 
 #### Switches
-- Fan switch
-- Fan auto mode
-- Light auto mode
-- Light hard power off
-- Fallback-Verhalten bei Verbindungsverlust:
-  - Licht aus
-  - oder internen Auto-Mode nutzen
+- `fan`
+- `fan_auto_mode`
+- `light_auto_mode`
+- `light_hard_power_off`
+- `light_fallback_to_auto`
 
 #### Light
-- eine `light`-Entity für das Grow-Light
+- `grow_light`
   - Brightness
   - ON/OFF
   - nur voll nutzbar bei `light_auto_mode = OFF`
@@ -594,6 +623,8 @@ Folgende Fault-States sind in der Firmware-Dokumentation verbindlich:
 - `rtc_fault`
 - `eeprom_fault`
 
+In HA werden diese Fault-Flags als `binary_sensor` publiziert.
+
 Nicht verwenden:
 
 - `sensor_fault`
@@ -604,6 +635,8 @@ Zusätzlich als Textzustand:
 
 - `light_fault_reason`
 
+In HA wird `light_fault_reason` als Text-`sensor` publiziert.
+
 Vorgesehene Inhalte von `light_fault_reason`:
 
 - `ad5263_not_found`
@@ -612,8 +645,10 @@ Vorgesehene Inhalte von `light_fault_reason`:
 
 Verbindliche Verhaltensregeln:
 
-- AD5263 beim Boot nicht erreichbar: Relais offen, Licht aus, `light_fault` und `light_fault_reason` setzen.
-- AD5263-Fehler im Betrieb: Relais öffnen, `light_fault` setzen, `light_fault_reason` aktualisieren.
+- AD5263 beim Boot nicht erreichbar: Relais offen, Licht aus, `light_fault` setzen, `light_fault_reason = ad5263_not_found`.
+- Diskrete Lichtkommandos (manuell, Jobstart, Restore) mit Write + Readback prüfen; 1 kurzer Retry ist zulässig.
+- Lange Dimmrampen nicht auf jedem Zwischenschritt readbacken; stattdessen am Rampenende verifizieren.
+- AD5263-Fehler im Betrieb (I²C/Write/Readback nach Retry): Relais öffnen, `light_fault` setzen, `light_fault_reason` aktualisieren.
 - Lüfterfehler: Wenn der Lüfter effektiv eingeschaltet sein soll, aber nach Karenzzeit keine Tachopulse anliegen, `fan_fault` setzen.
 - Für Relais und Bodenfeuchtesensor keine starke Hardware-Selbstdiagnose behaupten, da kein echter Rückkanal vorhanden ist.
 
@@ -637,7 +672,3 @@ Verbindliche Verhaltensregeln:
 
 ### 14.2 Alert-Struktur
 - `alertTriggers[]` bleibt als Statuscontainer erhalten
-
-
-
-

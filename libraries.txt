@@ -13,6 +13,7 @@ Installiere diese Bibliotheken in der Arduino IDE, bevor du das Projekt kompilie
 - AD5263 by Rob Tillaart https://github.com/RobTillaart/AD5263
   - Für die AD5263BRUZ50-Dimmeransteuerung per I²C.
   - Hinweis: Bibliothek ist noch in einer frühen/Test-Phase; projektspezifische Anpassungen können nötig sein.
+  - Für die in der Spezifikation geforderte Readback-/Plausibilitätsprüfung zur Fault-Erkennung können projektspezifische Ergänzungen oder zusätzliche Bibliotheksfunktionen nötig sein.
 
 - JC_EEPROM by Jack Christensen https://github.com/JChristensen/JC_EEPROM
   - Zugriff auf das externe **AT24C32-EEPROM** des
@@ -38,4 +39,3 @@ Installiere diese Bibliotheken in der Arduino IDE, bevor du das Projekt kompilie
   - `setAlarm2(...)`
   - `alarmFired(...)`
   - `clearAlarm(...)`
-

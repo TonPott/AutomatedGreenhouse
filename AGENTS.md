@@ -9,12 +9,27 @@ Diese Datei definiert verbindliche Arbeitsregeln für Codex und andere KI-Agente
 Dies ist ein Arduino-IDE-kompatibles Firmware-Projekt für einen **Arduino Nano 33 IoT**.
 Die Firmware steuert Sensorik, Lüfter, Licht, RTC, externes EEPROM und Home-Assistant-MQTT-Integration.
 
+## Aktuelle Projektphase
+
+Das Repository befindet sich in einer Umbauphase auf Basis bestehender Firmware.
+
+- Vorhandener Code wird gezielt refactort und migriert.
+- Keine parallelen Altpfade als Runtime-Option beibehalten, wenn sie nicht ausdrücklich dokumentiert sind.
+- Der alte PWM-/RC-/PC817-Lichtpfad ist kein gültiges Zielkonzept mehr.
+- Maßgebliche Quellen für den Umbau sind:
+  - `SPEC.md`
+  - `MODULES.md`
+  - `docs/entity-model.md`
+- Wenn Bestandscode und aktuelle Dokumentation widersprechen, hat die aktuelle Dokumentation Vorrang.
+- Persistenz wird gezielt erweitert, ohne vorhandene Konfigurationswerte doppelt anzulegen.
+- Resume-State und Fault-States gehören zum verbindlichen Umbauumfang.
+
 ## Verbindliche Arbeitsregeln
 
 ### 1. Projektstruktur beibehalten
 - Das Projekt bleibt ein klassischer Arduino-Sketchordner.
-- `Smaeenhouse.ino` bleibt im Repo-Wurzelverzeichnis.
-- Header- und CPP-Dateien bleiben im gleichen Ordner wie `Smaeenhouse.ino`, sofern nicht ausdrücklich anders gewünscht.
+- Der Hauptsketch liegt unter `Smaeenhouse/Smaeenhouse.ino`.
+- Header- und CPP-Dateien bleiben im gleichen Ordner wie der Hauptsketch, sofern nicht ausdrücklich anders gewünscht.
 
 ### 2. Credentials niemals überschreiben
 - `Credentials.h` ist lokal und geheim.
@@ -29,6 +44,7 @@ Die Firmware steuert Sensorik, Lüfter, Licht, RTC, externes EEPROM und Home-Ass
   - SHT-Alert
   - DS3231-SQW/INT
   - externe AT24C32-EEPROM-Zugriffe
+  - AD5263-Zugriffe
 
 ### 4. Keine MQTT-/HA-Logik in ISR
 - MQTT, ArduinoHA und Publishes nur im Hauptloop bzw. in normalen Methoden.
@@ -56,6 +72,7 @@ Keine alternativen JSON-/String-Kommandos einführen, außer der Nutzer fordert 
 - Kapsle den EEPROM-Zugriff in einer projektinternen Persistenzschicht.
 - Schreibe nur bei tatsächlichen Änderungen.
 - Vermeide unnötig häufige Writes im normalen Laufbetrieb.
+- Erweitere Persistenz gezielt um Resume-State, ohne vorhandene Werte doppelt anzulegen.
 
 ### 8. RTC-Alarme für den Arduino-internen Lichtplan verwenden
 - Nutze die beiden DS3231-Alarme für den internen Arduino-Lichtplan.
@@ -95,7 +112,7 @@ erneut an HA publiziert werden.
 Vor größeren Codeänderungen:
 - `SPEC.md` beachten
 - `MODULES.md` beachten
-- `entity-model.md` beachten
+- `docs/entity-model.md` beachten
 - vorhandenen Schaltplan im Projektordner beachten
 
 ### 14. SHTa-Routinen verwenden
@@ -106,7 +123,7 @@ Vor größeren Codeänderungen:
 - Hardware-Abschnitte so formulieren, dass das Projekt auch beim ersten Lesen verständlich bleibt.
 - Schaltplan im Projektordner als Primärreferenz erwähnen.
 - Textliche Doku soll zusätzlich die Signalaufbereitung für:
-  - Licht-Dimmer (AD5263-Widerstandspfad zwischen Dim+ und Dim-)
+  - Licht-Dimmer (AD5263-Widerstandspfad zwischen `Dim+` und `Dim-`)
   - Lüfter-Tacho (2N3904-Stufe)
   beschreiben.
 
@@ -121,9 +138,8 @@ Wenn Code und Doku widersprechen, gilt zuerst die Doku — außer der Nutzer sag
 
 ## Nicht erwünscht
 
-- große Logikblöcke direkt in `Smaeenhouse.ino`
+- große Logikblöcke direkt in `Smaeenhouse/Smaeenhouse.ino`
 - versteckte globale Nebenwirkungen
 - blockierende `delay()`-Ketten
 - Bibliotheken vendoren/einchecken ohne Grund
 - spontane Änderung der Repo-Struktur
-
