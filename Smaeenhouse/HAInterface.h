@@ -65,6 +65,7 @@ private:
   void handleStartHaDimButtonCommand();
 
   void publishSwitchAndLightStates();
+  void publishFaultStates(bool force = false);
 
   FanController& fanController_;
   LightController& lightController_;
@@ -84,6 +85,13 @@ private:
   HASensorNumber soilPercentSensor_;
   HASensorNumber soilRawSensor_;
   HASensorNumber fanRpmSensor_;
+  HASensor lightFaultReasonSensor_;
+
+  HABinarySensor lightFaultBinarySensor_;
+  HABinarySensor fanFaultBinarySensor_;
+  HABinarySensor shtFaultBinarySensor_;
+  HABinarySensor rtcFaultBinarySensor_;
+  HABinarySensor eepromFaultBinarySensor_;
 
   HASwitch fanSwitch_;
   HASwitch fanAutoModeSwitch_;

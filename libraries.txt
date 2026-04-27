@@ -2,7 +2,6 @@ Installiere diese Bibliotheken in der Arduino IDE, bevor du das Projekt kompilie
 
 ## Kernbibliotheken / Abhängigkeiten
 
-- Sensirion Core https://github.com/Sensirion/arduino-core/
 - Sensirion arduino-i2c-sht3x https://github.com/Sensirion/arduino-i2c-sht3x
 - RTClib https://github.com/adafruit/RTClib
 - WiFiNINA https://docs.arduino.cc/libraries/wifinina/

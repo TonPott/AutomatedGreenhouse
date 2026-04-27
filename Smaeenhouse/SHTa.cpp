@@ -16,7 +16,11 @@
 #define SHT31_ALERT_WLS 0x00
 
 SHTa::SHTa()
-    : aStatusRegister(0), error(NO_ERROR), lastTemperature_(NAN), lastHumidity_(NAN) {
+    : aStatusRegister(0),
+      error(NO_ERROR),
+      lastTemperature_(NAN),
+      lastHumidity_(NAN),
+      fault_(false) {
   clearDecodedFlags();
 }
 
@@ -26,6 +30,7 @@ void SHTa::begin() {
   delay(1);
   sensor.softReset();
   delay(10);
+  fault_ = false;
 }
 
 void SHTa::stopMeasurement() {
@@ -50,11 +55,13 @@ int16_t SHTa::blockingReadMeasurement(float& aTemperature, float& aHumidity) {
     Serial.print(F("SHT blockingReadMeasurement() failed: "));
     errorToString(error, errorMessage, sizeof(errorMessage));
     Serial.println(errorMessage);
+    fault_ = true;
     return error;
   }
 
   lastTemperature_ = localTemp;
   lastHumidity_ = localHum;
+  fault_ = false;
 
   aTemperature = localTemp;
   aHumidity = localHum;
@@ -82,7 +89,11 @@ void SHTa::readStatusRegister() {
     Serial.print(F("SHT readStatusRegister() failed: "));
     errorToString(error, errorMessage, sizeof(errorMessage));
     Serial.println(errorMessage);
+    fault_ = true;
+    return;
   }
+
+  fault_ = false;
 }
 
 void SHTa::printStatusRegister() {
@@ -107,16 +118,21 @@ void SHTa::printStatusRegister() {
   Serial.println();
 }
 
-void SHTa::clearStatus() {
+bool SHTa::clearStatus() {
   Wire.beginTransmission(SHT30_I2C_ADDR_45);
   Wire.write(0x30);
   Wire.write(0x41);
-  Wire.endTransmission();
+  const bool ok = Wire.endTransmission() == 0;
   delayMicroseconds(50);
+  fault_ = !ok;
+  return ok;
 }
 
-void SHTa::decodeStatusRegister() {
+bool SHTa::decodeStatusRegister() {
   readStatusRegister();
+  if (error != NO_ERROR) {
+    return false;
+  }
 
   // Alert pending
   alertTriggers[0] = (aStatusRegister & (1U << 15)) != 0;
@@ -132,13 +148,23 @@ void SHTa::decodeStatusRegister() {
   alertTriggers[5] = (aStatusRegister & (1U << 1)) != 0;
   // Write CRC error
   alertTriggers[6] = (aStatusRegister & (1U << 0)) != 0;
+
+  if (alertTriggers[5] || alertTriggers[6]) {
+    fault_ = true;
+  }
+
+  return true;
 }
 
-void SHTa::applyThresholdConfig(const PersistentConfigData& cfg) {
-  writeHighLimit(cfg.tempHighSet, cfg.humHighSet);
-  writeHighClear(cfg.tempHighClear, cfg.humHighClear);
-  writeLowLimit(cfg.tempLowSet, cfg.humLowSet);
-  writeLowClear(cfg.tempLowClear, cfg.humLowClear);
+bool SHTa::applyThresholdConfig(const PersistentConfigData& cfg) {
+  const bool ok =
+      writeLimit(SHT31_ALERT_WHS, encodeAlertLimit(cfg.tempHighSet, cfg.humHighSet)) &&
+      writeLimit(SHT31_ALERT_WHC, encodeAlertLimit(cfg.tempHighClear, cfg.humHighClear)) &&
+      writeLimit(SHT31_ALERT_WLS, encodeAlertLimit(cfg.tempLowSet, cfg.humLowSet)) &&
+      writeLimit(SHT31_ALERT_WLC, encodeAlertLimit(cfg.tempLowClear, cfg.humLowClear));
+
+  fault_ = !ok;
+  return ok;
 }
 
 bool SHTa::hasTempAlert() const {
@@ -151,6 +177,10 @@ bool SHTa::hasHumAlert() const {
 
 bool SHTa::hasSensorReset() const {
   return alertTriggers[4];
+}
+
+bool SHTa::hasFault() const {
+  return fault_;
 }
 
 void SHTa::clearDecodedFlags() {
@@ -230,7 +260,9 @@ bool SHTa::writeLimit(uint8_t lsb, uint16_t raw) {
   Wire.write(buf[0]);
   Wire.write(buf[1]);
   Wire.write(crc);
-  return Wire.endTransmission() == 0;
+  const bool ok = Wire.endTransmission() == 0;
+  fault_ = !ok;
+  return ok;
 }
 
 void SHTa::writeHighLimit(float tempHigh, float humHigh) {
@@ -254,12 +286,14 @@ bool SHTa::readLimit(uint8_t lsb, uint16_t& raw) {
   Wire.write(SHT31_ALERT_READ);
   Wire.write(lsb);
   if (Wire.endTransmission() != 0) {
+    fault_ = true;
     return false;
   }
 
   delayMicroseconds(50);
 
   if (Wire.requestFrom(static_cast<uint8_t>(SHT30_I2C_ADDR_45), static_cast<uint8_t>(3)) != 3) {
+    fault_ = true;
     return false;
   }
 
@@ -269,10 +303,12 @@ bool SHTa::readLimit(uint8_t lsb, uint16_t& raw) {
   const uint8_t crc = Wire.read();
 
   if (crc8(b, 2) != crc) {
+    fault_ = true;
     return false;
   }
 
   raw = (static_cast<uint16_t>(b[0]) << 8) | b[1];
+  fault_ = false;
   return true;
 }
 

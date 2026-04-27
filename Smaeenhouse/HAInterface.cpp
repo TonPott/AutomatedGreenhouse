@@ -29,6 +29,12 @@
 #ifndef MQTT_PASSWORD
 #error "Credentials.h must define MQTT_PASSWORD."
 #endif
+#ifndef MQTT_PORT
+#error "Credentials.h must define MQTT_PORT."
+#endif
+#ifndef MQTT_PREFIX
+#error "Credentials.h must define MQTT_PREFIX."
+#endif
 
 HAInterface* HAInterface::instance_ = nullptr;
 
@@ -86,14 +92,20 @@ HAInterface::HAInterface(FanController& fanController,
       mqtt_(networkClient_, device_, 40),
       temperatureSensor_("temperature"),
       humiditySensor_("humidity"),
-      soilPercentSensor_("soil_moisture_percent"),
-      soilRawSensor_("soil_moisture_raw"),
+      soilPercentSensor_("soil_moisture"),
+      soilRawSensor_("soil_raw"),
       fanRpmSensor_("fan_rpm"),
-      fanSwitch_("fan_switch"),
+      lightFaultReasonSensor_("light_fault_reason"),
+      lightFaultBinarySensor_("light_fault"),
+      fanFaultBinarySensor_("fan_fault"),
+      shtFaultBinarySensor_("sht_fault"),
+      rtcFaultBinarySensor_("rtc_fault"),
+      eepromFaultBinarySensor_("eeprom_fault"),
+      fanSwitch_("fan"),
       fanAutoModeSwitch_("fan_auto_mode"),
       lightAutoModeSwitch_("light_auto_mode"),
       lightHardPowerOffSwitch_("light_hard_power_off"),
-      lightFallbackUseAutoModeSwitch_("light_fallback_use_auto_mode"),
+      lightFallbackUseAutoModeSwitch_("light_fallback_to_auto"),
       growLight_("grow_light", HALight::BrightnessFeature),
       tempHighSetNumber_("temp_high_set", HANumber::PrecisionP1),
       tempHighClearNumber_("temp_high_clear", HANumber::PrecisionP1),
@@ -120,6 +132,13 @@ void HAInterface::begin() {
   instance_ = this;
 
   device_.setName(DEVICE_NAME);
+  device_.setManufacturer("Smaeenhouse");
+  device_.setModel("Nano 33 IoT Grow Controller");
+  device_.setSoftwareVersion("ad5263");
+  device_.enableSharedAvailability();
+  device_.enableLastWill();
+
+  mqtt_.setDiscoveryPrefix(MQTT_PREFIX);
 
   temperatureSensor_.setName("Temperature");
   temperatureSensor_.setUnitOfMeasurement("C");
@@ -135,11 +154,19 @@ void HAInterface::begin() {
   fanRpmSensor_.setName("Fan RPM");
   fanRpmSensor_.setUnitOfMeasurement("rpm");
 
-  fanSwitch_.setName("Fan Switch");
+  lightFaultReasonSensor_.setName("Light Fault Reason");
+
+  lightFaultBinarySensor_.setName("Light Fault");
+  fanFaultBinarySensor_.setName("Fan Fault");
+  shtFaultBinarySensor_.setName("SHT Fault");
+  rtcFaultBinarySensor_.setName("RTC Fault");
+  eepromFaultBinarySensor_.setName("EEPROM Fault");
+
+  fanSwitch_.setName("Fan");
   fanAutoModeSwitch_.setName("Fan Auto Mode");
   lightAutoModeSwitch_.setName("Light Auto Mode");
   lightHardPowerOffSwitch_.setName("Light Hard Power Off");
-  lightFallbackUseAutoModeSwitch_.setName("Light Fallback Use Auto Mode");
+  lightFallbackUseAutoModeSwitch_.setName("Light Fallback To Auto");
 
   growLight_.setName("Grow Light");
   growLight_.setBrightnessScale(100);
@@ -211,19 +238,19 @@ void HAInterface::begin() {
   defaultLightDimMinutesNumber_.setStep(1.0f);
 
   soilAirNumber_.setName("Soil Air");
-  soilAirNumber_.setMin(0.0f);
-  soilAirNumber_.setMax(1000.0f);
+  soilAirNumber_.setMin(static_cast<float>(SOIL_CAL_MIN));
+  soilAirNumber_.setMax(static_cast<float>(SOIL_CAL_MAX));
   soilAirNumber_.setStep(1.0f);
 
   soilWaterNumber_.setName("Soil Water");
-  soilWaterNumber_.setMin(0.0f);
-  soilWaterNumber_.setMax(1000.0f);
+  soilWaterNumber_.setMin(static_cast<float>(SOIL_CAL_MIN));
+  soilWaterNumber_.setMax(static_cast<float>(SOIL_CAL_MAX));
   soilWaterNumber_.setStep(1.0f);
 
   soilDepthNumber_.setName("Soil Depth mm");
   soilDepthNumber_.setUnitOfMeasurement("mm");
-  soilDepthNumber_.setMin(0.0f);
-  soilDepthNumber_.setMax(120.0f);
+  soilDepthNumber_.setMin(static_cast<float>(SOIL_DEPTH_MIN_MM));
+  soilDepthNumber_.setMax(static_cast<float>(SOIL_DEPTH_MAX_MM));
   soilDepthNumber_.setStep(1.0f);
 
   haDimTargetPercentNumber_.setName("HA Dim Target Percent");
@@ -279,7 +306,10 @@ void HAInterface::begin() {
   pendingHaDimTargetPercent_ = 100;
   pendingHaDimDurationMinutes_ = configData_.defaultLightDimMinutes;
 
-  const bool mqttBeginOk = mqtt_.begin(MQTT_HOST, MQTT_USERNAME, MQTT_PASSWORD);
+  const bool mqttBeginOk = mqtt_.begin(MQTT_HOST,
+                                       static_cast<uint16_t>(MQTT_PORT),
+                                       MQTT_USERNAME,
+                                       MQTT_PASSWORD);
   Serial.print(F("HAMqtt begin: initialized="));
   Serial.print(mqttBeginOk ? F("YES") : F("NO"));
   Serial.print(F(", broker="));
@@ -300,6 +330,7 @@ void HAInterface::begin() {
   wasWifiConnected_ = networkManager_.isWifiConnected();
   wasMqttConnected_ = mqtt_.isConnected();
   networkManager_.setMqttConnected(wasMqttConnected_, millis());
+  device_.setAvailability(wasMqttConnected_);
 }
 
 void HAInterface::update(uint32_t nowMs) {
@@ -309,7 +340,10 @@ void HAInterface::update(uint32_t nowMs) {
       Serial.println(F("WiFi connected, retrying MQTT setup."));
       mqtt_.disconnect();
 
-      const bool mqttBeginOk = mqtt_.begin(MQTT_HOST, MQTT_USERNAME, MQTT_PASSWORD);
+      const bool mqttBeginOk = mqtt_.begin(MQTT_HOST,
+                                           static_cast<uint16_t>(MQTT_PORT),
+                                           MQTT_USERNAME,
+                                           MQTT_PASSWORD);
       Serial.print(F("HAMqtt re-begin after WiFi connect: initialized="));
       Serial.print(mqttBeginOk ? F("YES") : F("NO"));
       Serial.print(F(", connectedNow="));
@@ -322,6 +356,7 @@ void HAInterface::update(uint32_t nowMs) {
   }
 
   if (!networkManager_.isWifiConnected() && mqtt_.isConnected()) {
+    device_.setAvailability(false);
     mqtt_.disconnect();
   }
 
@@ -331,7 +366,10 @@ void HAInterface::update(uint32_t nowMs) {
   networkManager_.setMqttConnected(mqttConnected, nowMs);
 
   if (mqttConnected && !wasMqttConnected_) {
+    device_.setAvailability(true);
     onMqttConnected();
+  } else if (!mqttConnected && wasMqttConnected_) {
+    device_.setAvailability(false);
   }
 
   wasMqttConnected_ = mqttConnected;
@@ -351,6 +389,7 @@ void HAInterface::onMqttConnected() {
 void HAInterface::publishAllStates() {
   publishConfigValues();
   publishSensorValues(true);
+  publishFaultStates(true);
 }
 
 void HAInterface::publishSensorValues(bool force) {
@@ -388,10 +427,13 @@ void HAInterface::publishSensorValues(bool force) {
     fanRpmSensor_.setValue(static_cast<int32_t>(fanController_.getRPM()));
     lastFanPublishMs_ = nowMs;
   }
+
+  publishFaultStates(force);
 }
 
 void HAInterface::publishConfigValues() {
   publishSwitchAndLightStates();
+  publishFaultStates();
 
   tempHighSetNumber_.setState(configData_.tempHighSet);
   tempHighClearNumber_.setState(configData_.tempHighClear);
@@ -426,6 +468,15 @@ void HAInterface::publishSwitchAndLightStates() {
 
   growLight_.setState(lightController_.isPowerOn());
   growLight_.setBrightness(lightController_.getCurrentBrightness());
+}
+
+void HAInterface::publishFaultStates(bool force) {
+  lightFaultBinarySensor_.setState(lightController_.hasLightFault(), force);
+  fanFaultBinarySensor_.setState(fanController_.hasFault(), force);
+  shtFaultBinarySensor_.setState(sht_.hasFault(), force);
+  rtcFaultBinarySensor_.setState(clockService_.hasFault(), force);
+  eepromFaultBinarySensor_.setState(configManager_.hasFault(), force);
+  lightFaultReasonSensor_.setValue(lightController_.getLightFaultReason());
 }
 
 void HAInterface::onFanSwitchCommandStatic(bool state, HASwitch* /*sender*/) {
@@ -586,15 +637,16 @@ void HAInterface::handleNumberCommand(HANumeric number, HANumber* sender) {
     pendingHaDimDurationMinutes_ = configData_.defaultLightDimMinutes;
     persistConfig = true;
   } else if (sender == &soilAirNumber_) {
-    configData_.soilAir = static_cast<int16_t>(clampUInt16(intValue, 0, 1000));
+    configData_.soilAir = static_cast<int16_t>(clampUInt16(intValue, SOIL_CAL_MIN, SOIL_CAL_MAX));
     persistConfig = true;
     updateSoilCalibration = true;
   } else if (sender == &soilWaterNumber_) {
-    configData_.soilWater = static_cast<int16_t>(clampUInt16(intValue, 0, 1000));
+    configData_.soilWater = static_cast<int16_t>(clampUInt16(intValue, SOIL_CAL_MIN, SOIL_CAL_MAX));
     persistConfig = true;
     updateSoilCalibration = true;
   } else if (sender == &soilDepthNumber_) {
-    configData_.soilDepthMm = static_cast<int16_t>(clampUInt16(intValue, 0, 120));
+    configData_.soilDepthMm =
+        static_cast<int16_t>(clampUInt16(intValue, SOIL_DEPTH_MIN_MM, SOIL_DEPTH_MAX_MM));
     persistConfig = true;
     updateSoilCalibration = true;
   } else if (sender == &haDimTargetPercentNumber_) {

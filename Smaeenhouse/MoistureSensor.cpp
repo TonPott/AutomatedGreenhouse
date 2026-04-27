@@ -61,9 +61,9 @@ int MoistureSensor::getSoilDepthMm() const {
 }
 
 void MoistureSensor::setCalibration(int air, int water, int depthMm) {
-  soilAir_ = constrain(air, 0, 4095);
-  soilWater_ = constrain(water, 0, 4095);
-  soilDepthMm_ = constrain(depthMm, 0, 1000);
+  soilAir_ = constrain(air, SOIL_CAL_MIN, SOIL_CAL_MAX);
+  soilWater_ = constrain(water, SOIL_CAL_MIN, SOIL_CAL_MAX);
+  soilDepthMm_ = constrain(depthMm, SOIL_DEPTH_MIN_MM, SOIL_DEPTH_MAX_MM);
 }
 
 uint8_t MoistureSensor::computePercent(int raw) const {

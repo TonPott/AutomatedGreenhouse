@@ -199,6 +199,14 @@ DateTime ClockService::now() {
   return rtc_.now();
 }
 
+uint32_t ClockService::currentEpoch() {
+  if (!rtcAvailable_ || !timeValid_) {
+    return LIGHT_RESUME_INVALID_EPOCH;
+  }
+
+  return rtc_.now().unixtime();
+}
+
 uint16_t ClockService::minutesSinceMidnight() {
   const DateTime current = now();
   return static_cast<uint16_t>((current.hour() * 60U) + current.minute());
@@ -210,6 +218,10 @@ bool ClockService::isTimeValid() const {
 
 bool ClockService::isRtcAvailable() const {
   return rtcAvailable_;
+}
+
+bool ClockService::hasFault() const {
+  return !rtcAvailable_ || !timeValid_;
 }
 
 bool ClockService::fetchNtpUnixTime(uint32_t& unixTimeUtc) {

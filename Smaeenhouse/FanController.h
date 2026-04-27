@@ -14,6 +14,7 @@ public:
   bool isAutoMode() const;
   bool getManualState() const;
   bool isOn() const;
+  bool hasFault() const;
   uint16_t getRPM() const;
 
 private:
@@ -24,10 +25,12 @@ private:
   volatile uint32_t tachPulseCount_ = 0;
 
   uint32_t lastRpmCalcMs_ = 0;
+  uint32_t runningSinceMs_ = 0;
   uint16_t rpm_ = 0;
 
   bool autoMode_ = true;
   bool manualState_ = false;
   bool autoDemand_ = false;
   bool effectiveState_ = false;
+  bool fault_ = false;
 };

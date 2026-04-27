@@ -10,6 +10,18 @@ enum LightFallbackMode : uint8_t {
   LIGHT_FALLBACK_USE_AUTO_MODE = 1
 };
 
+struct LightResumeState {
+  uint8_t effectiveBrightnessPercent;
+  uint8_t lastNonZeroBrightnessPercent;
+  uint8_t hardPowerOffActive;
+  uint8_t haDimJobActive;
+  uint8_t dimJobStartPercent;
+  uint8_t dimJobTargetPercent;
+  uint32_t dimJobDurationMs;
+  uint32_t dimJobStartEpoch;
+  uint8_t reserved[2];
+};
+
 struct PersistentConfigData {
   uint16_t schemaVersion;
 
@@ -35,7 +47,9 @@ struct PersistentConfigData {
   int16_t soilWater;
   int16_t soilDepthMm;
 
-  uint8_t reserved[8];
+  LightResumeState lightResumeState;
+
+  uint8_t reserved[4];
 };
 
 class PersistentConfigManager {
@@ -49,12 +63,17 @@ public:
 
   const PersistentConfigData& current() const;
   bool isStorageAvailable() const;
+  bool hasFault() const;
 
 private:
   bool isReasonable(const PersistentConfigData& cfg) const;
+  void resetResumeState(LightResumeState& resumeState) const;
+  bool normalizeSoilCalibration(PersistentConfigData& cfg) const;
 
   RtcEepromStorage storage_;
   bool storageReady_ = false;
   bool initialized_ = false;
+  bool fault_ = false;
+  bool lastLoadMigrated_ = false;
   PersistentConfigData current_{};
 };

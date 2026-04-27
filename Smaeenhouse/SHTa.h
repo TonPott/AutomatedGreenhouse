@@ -21,8 +21,8 @@ public:
   void printMeasurement();
   void readStatusRegister();
   void printStatusRegister();
-  void clearStatus();
-  void decodeStatusRegister();
+  bool clearStatus();
+  bool decodeStatusRegister();
   void writeHighLimit(float tempHigh, float humHigh);
   void writeHighClear(float tempHighClear, float humHighClear);
   void writeLowLimit(float tempLow, float humLow);
@@ -31,11 +31,12 @@ public:
   bool readLimit(uint8_t lsb, uint16_t& raw);
   void printLimit(const char* name, uint16_t raw);
 
-  void applyThresholdConfig(const PersistentConfigData& cfg);
+  bool applyThresholdConfig(const PersistentConfigData& cfg);
   bool readMeasurement(float& temperature, float& humidity);
   bool hasTempAlert() const;
   bool hasHumAlert() const;
   bool hasSensorReset() const;
+  bool hasFault() const;
   void clearDecodedFlags();
 
   float getLastTemperature() const;
@@ -48,6 +49,7 @@ private:
 
   float lastTemperature_;
   float lastHumidity_;
+  bool fault_;
 
   uint8_t crc8(const uint8_t* data, int len);
   uint16_t encodeAlertLimit(float tempC, float humRH);

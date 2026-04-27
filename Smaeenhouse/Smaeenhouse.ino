@@ -21,9 +21,9 @@ PersistentConfigData cfg{};
 
 SHTa sht;
 FanController fan;
-LightController light;
-MoistureSensor moisture(PIN_SOIL_SENSOR);
 ClockService clockService;
+LightController light(configManager, cfg, clockService);
+MoistureSensor moisture(PIN_SOIL_SENSOR);
 NetworkManager networkManager;
 HAInterface ha(fan, light, moisture, clockService, sht, configManager, cfg, networkManager);
 
@@ -31,6 +31,8 @@ bool fallbackWasActive = false;
 bool lastKnownAutoMode = DEFAULT_LIGHT_AUTO_MODE;
 bool lastKnownWifiConnected = false;
 uint32_t lastShtStatusPollMs = 0;
+bool hasFallbackResumeSnapshot = false;
+LightResumeState fallbackResumeSnapshot{};
 
 bool minuteIsInsideOnWindow(uint16_t minuteNow, uint16_t onMinute, uint16_t offMinute) {
   if (onMinute == offMinute) {
@@ -41,8 +43,18 @@ bool minuteIsInsideOnWindow(uint16_t minuteNow, uint16_t onMinute, uint16_t offM
     return minuteNow >= onMinute && minuteNow < offMinute;
   }
 
-  // Overnight window (for example ON 22:00, OFF 06:00).
   return minuteNow >= onMinute || minuteNow < offMinute;
+}
+
+uint8_t currentAutoWindowTargetPercent() {
+  if (!clockService.isTimeValid()) {
+    return 0;
+  }
+
+  const uint16_t nowMinute = clockService.minutesSinceMidnight();
+  const bool shouldBeOn =
+      minuteIsInsideOnWindow(nowMinute, cfg.lightOnTimeMinutes, cfg.lightOffTimeMinutes);
+  return shouldBeOn ? 100 : 0;
 }
 
 void alignLightWithCurrentAutoWindow() {
@@ -50,15 +62,11 @@ void alignLightWithCurrentAutoWindow() {
     return;
   }
 
-  const uint16_t nowMinute = clockService.minutesSinceMidnight();
-  const bool shouldBeOn = minuteIsInsideOnWindow(nowMinute, cfg.lightOnTimeMinutes, cfg.lightOffTimeMinutes);
-
-  light.startArduinoDimJob(shouldBeOn ? 100 : 0, 0);
+  light.startArduinoDimJob(currentAutoWindowTargetPercent(), 0);
 }
 
 void evaluateShtAlertsAndFanDemand() {
   if (sht.hasSensorReset()) {
-    // Sensor reset detected by SHT status bit. Re-apply configured thresholds.
     sht.applyThresholdConfig(cfg);
     sht.clearStatus();
   }
@@ -79,7 +87,7 @@ void onRtcAlarmInterrupt() {
 
 void setup() {
   Serial.begin(115200);
-  
+
   Wire.begin();
 
   configManager.begin(Wire);
@@ -97,10 +105,16 @@ void setup() {
   Serial.print(F(", lightAutoMode="));
   Serial.println(cfg.lightAutoMode ? F("ON") : F("OFF"));
 
+  clockService.begin();
+  const bool alarmsConfigured =
+      clockService.configureScheduleAlarms(cfg.lightOnTimeMinutes, cfg.lightOffTimeMinutes);
+  Serial.print(F("ClockService alarm config: success="));
+  Serial.println(alarmsConfigured ? F("YES") : F("NO"));
+
   sht.begin();
-  sht.startPeriodicMeasurement(REPEATABILITY_MEDIUM,
-                               MPS_ONE_PER_SECOND);
+  sht.startPeriodicMeasurement(REPEATABILITY_MEDIUM, MPS_ONE_PER_SECOND);
   sht.applyThresholdConfig(cfg);
+
   float initialTemperature = NAN;
   float initialHumidity = NAN;
   if (sht.readMeasurement(initialTemperature, initialHumidity)) {
@@ -116,21 +130,16 @@ void setup() {
   fan.setAutoMode(cfg.fanAutoMode);
   fan.setManualState(false);
 
-  light.begin();
+  light.begin(Wire);
   light.setAutoMode(cfg.lightAutoMode);
+  light.restoreOnBoot(cfg.lightAutoMode && clockService.isTimeValid(), currentAutoWindowTargetPercent());
 
   moisture.begin(cfg.soilAir, cfg.soilWater, cfg.soilDepthMm);
-
-  clockService.begin();
-  const bool alarmsConfigured = clockService.configureScheduleAlarms(cfg.lightOnTimeMinutes, cfg.lightOffTimeMinutes);
-  Serial.print(F("ClockService alarm config: success="));
-  Serial.println(alarmsConfigured ? F("YES") : F("NO"));
 
   networkManager.begin();
   lastKnownWifiConnected = networkManager.isWifiConnected();
   ha.begin();
 
-  // First boot sync attempt; regular retry is handled in ClockService::update().
   if (clockService.syncFromNTP() && light.isAutoMode()) {
     alignLightWithCurrentAutoWindow();
   }
@@ -151,9 +160,7 @@ void setup() {
     Serial.println(F("RTC alarm pin does not support interrupts."));
   }
 
-  // Force initial status decode and schedule alignment.
   shtAlertPending = true;
-  alignLightWithCurrentAutoWindow();
   lastKnownAutoMode = light.isAutoMode();
 }
 
@@ -178,7 +185,6 @@ void loop() {
   clockService.update(nowMs);
 
   bool shouldDecodeShtStatus = false;
-
   if (shtAlertPending) {
     noInterrupts();
     shtAlertPending = false;
@@ -191,8 +197,7 @@ void loop() {
     shouldDecodeShtStatus = true;
   }
 
-  if (shouldDecodeShtStatus) {
-    sht.decodeStatusRegister();
+  if (shouldDecodeShtStatus && sht.decodeStatusRegister()) {
     evaluateShtAlertsAndFanDemand();
   }
 
@@ -224,20 +229,28 @@ void loop() {
 
   const bool fallbackActive = networkManager.isFallbackActive();
   if (fallbackActive && !fallbackWasActive) {
+    fallbackResumeSnapshot = cfg.lightResumeState;
+    hasFallbackResumeSnapshot = true;
+
     if (cfg.lightFallbackMode == LIGHT_FALLBACK_USE_AUTO_MODE) {
       light.setAutoMode(true);
       alignLightWithCurrentAutoWindow();
     } else {
       light.applyHardPowerOff(true);
-      light.applyManualBrightness(0);
     }
   } else if (!fallbackActive && fallbackWasActive) {
-    // Return to persisted mode when connection is healthy again.
     light.applyHardPowerOff(false);
     light.setAutoMode(cfg.lightAutoMode);
-    if (light.isAutoMode()) {
+
+    if (!cfg.lightAutoMode && hasFallbackResumeSnapshot) {
+      cfg.lightResumeState = fallbackResumeSnapshot;
+      configManager.saveIfChanged(cfg);
+      light.restoreOnBoot(false, 0);
+    } else if (light.isAutoMode()) {
       alignLightWithCurrentAutoWindow();
     }
+
+    hasFallbackResumeSnapshot = false;
   }
   fallbackWasActive = fallbackActive;
 
