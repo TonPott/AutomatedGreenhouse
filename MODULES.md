@@ -63,6 +63,10 @@ Zentrale Compile-Time-Konstanten.
 - `DEFAULT_SOIL_AIR`
 - `DEFAULT_SOIL_WATER`
 - `DEFAULT_SOIL_DEPTH_MM`
+- `SOIL_REFERENCE_DEPTH_MM = 120`
+- `SOIL_MIN_VALID_DEPTH_MM = 20`
+- `SOIL_ADC_MIN = 0`
+- `SOIL_ADC_MAX = 4095`
 
 - `SOIL_PUBLISH_INTERVAL_MS = 10000`
 - `TEMP_HUM_PUBLISH_INTERVAL_MS = 60000`
@@ -326,8 +330,9 @@ Lesen und Umrechnen des Bodenfeuchtesensors.
 
 ### Verantwortlichkeiten
 - Rohwert lesen
-- Prozentwert aus Air/Water kalibriert berechnen
+- Prozentwert aus Air/Water, aktuellem Rohwert und Einstecktiefe berechnen
 - periodische 10-s-Messung
+- keine Kalibrierungs-State-Machine und keinen Kalibrierungsassistenten verwalten
 
 ### Zustände
 - `soilAir`
@@ -335,6 +340,7 @@ Lesen und Umrechnen des Bodenfeuchtesensors.
 - `soilDepth`
 - `lastRaw`
 - `lastPercent`
+- `lastPercentValid`
 - `lastReadMs`
 
 ### API
@@ -343,12 +349,39 @@ Lesen und Umrechnen des Bodenfeuchtesensors.
 - `int readRawNow();`
 - `int getLastRaw() const;`
 - `uint8_t getLastPercent() const;`
+- `bool isLastPercentValid() const;`
 - `void setCalibration(int air, int water, int depthMm);`
 
 ### Regeln
 - `update()` liest alle 10 s
-- Prozent aus `map(raw, air, water, 0, 100)` mit Begrenzung 0..100
-- keine Kenntnis über HA-Kalibrierroutine nötig
+- `readRawNow()` liest sofort, aktualisiert `lastRaw` und ermöglicht `button.read_soil_raw_value`
+- ADC-bezogene Rohwerte dürfen defensiv auf den 12-bit-Sicherheitsbereich 0..4095 begrenzt werden
+- `soilAir` und `soilWater` bleiben persistente HA-Konfigurationswerte im erwarteten Projektbereich 0..1000 mit Schrittweite 1
+- `soilDepth` ist ein aktiver Korrekturparameter, nicht nur ein Informationswert
+- wenn `soilDepth < 20`, ist der Prozentwert ungültig/unavailable; der Rohwert darf trotzdem publiziert werden
+- keine Kenntnis über HA-Kalibrierroutine, HA-Schritte oder Kalibrierstatus nötig
+
+### Prozentberechnung
+Die Firmware nutzt eine lineare Tiefenkorrektur, weil die Sensorantwort davon
+abhängt, wie viel aktive Sensorfläche im Medium steckt.
+
+Definitionen:
+- `SOIL_REFERENCE_DEPTH_MM = 120`
+- `soilAir`: Rohwert mit Sensor vollständig in Luft
+- `soilWater`: Rohwert mit Sensor in Wasser bei 120 mm Referenztiefe
+- `soilDepth`: tatsächliche Einstecktiefe in mm
+
+Konzept:
+
+```text
+depth_factor = soilDepth / SOIL_REFERENCE_DEPTH_MM
+percent = (soilAir - raw) / ((soilAir - soilWater) * depth_factor) * 100
+```
+
+Die Luftreferenz entspricht 0 %, die Wasserreferenz bei 120 mm entspricht 100 %.
+Gültige Ergebnisse werden auf 0..100 % begrenzt. Diese lineare Näherung ist
+absichtlich; eine Messreihe existiert, das Projekt bewertet das Modell derzeit
+aber als ausreichend genau.
 
 ## 9. ClockService
 
@@ -464,15 +497,20 @@ Das Modul sollte auf andere Module zugreifen können, z. B. per Referenz im Kons
 ### HA-Entities
 - `HADevice`
 - `HAMqtt`
-- `HASensorNumber` für Temperatur, Feuchte, Soil%, SoilRaw, RPM
+- `HASensorNumber` für Temperatur, Feuchte, `sensor.soil_moisture_percent`, `sensor.soil_moisture_raw`, RPM
 - `HASwitch` für Fan, FanAuto, LightAuto, HardPowerOff, Fallback-Verhalten
 - `HALight` für Grow-Light
-- `HANumber` für Thresholds, Zeiten, Dimmdauer, Soil-Kalibrierung
+- `HANumber` für Thresholds, Zeiten, Dimmdauer, `number.soil_air`, `number.soil_water`, `number.soil_depth_mm`
 - `HANumber` für `ha_dim_target_percent`
 - `HANumber` für `ha_dim_duration_minutes`
 - `HAButton` für `sync_time`
 - `HAButton` für `read_soil_raw_value`
 - `HAButton` für `start_ha_dim`
+
+Separate Soil-Capture-Buttons wie `capture_soil_air` oder
+`capture_soil_water` sind nicht Teil des HA-Entity-Modells. HA nutzt
+`read_soil_raw_value` und schreibt den gelesenen Wert per Script/Automation in
+`soil_air` oder `soil_water`.
 
 ### API
 - `void begin();`

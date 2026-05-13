@@ -279,21 +279,36 @@ Ein zusätzlicher HA-Schedule ist davon getrennt und nur wirksam, wenn `light_au
 
 ### 8.1 Messwerte
 Verfügbar sein sollen:
-- berechnete Bodenfeuchte in %
-- Rohwert des Sensors
+- `sensor.soil_moisture_percent`: berechnete Bodenfeuchte in %
+- `sensor.soil_moisture_raw`: Rohwert des Sensors
 
 ### 8.2 Kalibrierparameter
-- Air value
-- Water value
-- Sensor depth
+- `number.soil_air`
+- `number.soil_water`
+- `number.soil_depth_mm`
 
 Diese Werte:
 - sind persistent gespeichert
 - werden in HA angezeigt
 - können in HA geändert werden
 
+`soil_air` und `soil_water` bleiben user-facing Persistenzwerte im erwarteten Projektbereich:
+- min: 0
+- max: 1000
+- step: 1
+
+Dieser Bereich passt zum beobachteten realen Sensorverhalten; Luftwerte werden
+unter ca. 900 erwartet. Davon getrennt darf das Firmware-Sensormodul interne
+ADC-Rohwerte defensiv auf den 12-bit-Sicherheitsbereich 0..4095 begrenzen.
+
+`soil_depth_mm` bleibt ein vom Nutzer eingegebener Millimeterwert mit
+projektdefinierten Grenzen. Dieser Wert ist nicht nur informativ, sondern ein
+aktiver Korrekturparameter für die Prozentberechnung.
+
 ### 8.3 Kalibrierung
 Die Kalibrierroutine läuft vollständig in HA.
+Die Firmware verwaltet keinen Kalibrierungsassistenten und keine interne
+Kalibrierungs-State-Machine.
 
 Daher braucht die Firmware nicht:
 - den Kalibrierschritt zu kennen
@@ -302,15 +317,77 @@ Daher braucht die Firmware nicht:
 - einzelne Zwischenschritte zu speichern
 
 Die Firmware muss nur:
-- den Rohwert auf Anforderung liefern
-- am Ende die finalen Kalibrierdaten übernehmen
-- diese per Befehl in das externe EEPROM schreiben
+- periodisch den Rohwert lesen
+- periodisch den Prozentwert aus `soil_air`, `soil_water`, aktuellem Rohwert und `soil_depth_mm` berechnen
+- `sensor.soil_moisture_raw` publizieren
+- `sensor.soil_moisture_percent` publizieren, sofern die Auswertung gültig ist
+- den Rohwert auf Anforderung über `button.read_soil_raw_value` liefern
+- finale Änderungen an `number.soil_air`, `number.soil_water` und `number.soil_depth_mm` übernehmen
+- geänderte Persistenzwerte im externen EEPROM speichern
 
 ### 8.4 HA-Bedienung
-Es reicht ein Button:
-- `read soil raw value`
+Es reicht ein Firmware-Button:
+- `button.read_soil_raw_value`
 
-### 8.5 Messintervall
+Separate Firmware-Buttons wie `capture_soil_air` oder `capture_soil_water`
+sollen nicht eingeführt werden. Der vorhandene generische Button plus
+HA-Scripts/Automationen genügt und vermeidet unnötige MQTT-Entities.
+
+Vorgesehener HA-unterstützter Ablauf:
+
+1. Air step:
+   - Nutzer legt den Sensor trocken in Luft.
+   - HA ruft `button.read_soil_raw_value` auf.
+   - HA wartet kurz, bis `sensor.soil_moisture_raw` aktualisiert ist.
+   - HA schreibt diesen Wert in `number.soil_air`.
+
+2. Water step:
+   - Nutzer legt den Sensor bei der Referenztiefe von 120 mm in Wasser.
+   - HA ruft `button.read_soil_raw_value` auf.
+   - HA wartet kurz, bis `sensor.soil_moisture_raw` aktualisiert ist.
+   - HA schreibt diesen Wert in `number.soil_water`.
+
+3. Depth step:
+   - Nutzer trägt die reale Einstecktiefe im Substrat manuell in `number.soil_depth_mm` ein.
+   - Die Firmware nutzt diesen Wert aktiv für die korrigierte Prozentberechnung.
+
+### 8.5 Tiefenkorrektur und Prozentberechnung
+Die Sensorantwort hängt davon ab, wie viel aktive Sensorfläche tatsächlich im
+Medium steckt. Die Firmware verwendet deshalb eine einfache lineare
+Tiefenkorrektur.
+
+Definitionen:
+- `SOIL_REFERENCE_DEPTH_MM = 120`
+- `soil_air`: Rohwert mit Sensor vollständig in Luft
+- `soil_water`: Rohwert mit Sensor in Wasser bei 120 mm Referenztiefe
+- `soil_depth_mm`: tatsächliche Einstecktiefe im Substrat
+
+Konzept:
+
+```text
+depth_factor = soil_depth_mm / SOIL_REFERENCE_DEPTH_MM
+percent = (soil_air - raw) / ((soil_air - soil_water) * depth_factor) * 100
+```
+
+Die Luftreferenz entspricht 0 %, die Wasserreferenz bei 120 mm entspricht 100 %.
+Gültige Ergebnisse werden auf 0..100 % begrenzt. Die Formel ist eine bewusste
+lineare Näherung; es gibt eine Messreihe, das Projekt akzeptiert dieses Modell
+derzeit aber als ausreichend genau.
+
+### 8.6 Ungültige Tiefe
+Werte unter 20 mm gelten für die Bodenfeuchte-Prozentberechnung als ungültig.
+
+Begründung:
+- Die erste physische Sensormarkierung liegt bei 20 mm.
+- Messungen darunter gelten nicht als zuverlässig.
+
+Firmware-Verhalten:
+- Wenn `soil_depth_mm < 20`, soll `sensor.soil_moisture_percent` als ungültig bzw. unavailable behandelt werden.
+- `sensor.soil_moisture_raw` darf weiterhin publiziert werden.
+- Die Firmware soll in diesem Fall keinen irreführenden korrigierten Prozentwert erzeugen.
+- Home Assistant darf diesen Zustand je nach Frontend als unavailable/invalid anzeigen.
+
+### 8.7 Messintervall
 Der Bodenfeuchtesensor soll:
 - alle **10 Sekunden** ausgelesen werden
 - an HA veröffentlicht werden
@@ -378,8 +455,8 @@ Das Arduino erscheint als ein HA-Gerät.
 #### Sensoren
 - Temperatur
 - Luftfeuchtigkeit
-- Bodenfeuchte %
-- Bodenfeuchte Rohwert
+- `sensor.soil_moisture_percent`
+- `sensor.soil_moisture_raw`
 - Lüfter RPM
 
 #### Switches
@@ -402,13 +479,15 @@ Das Arduino erscheint als ein HA-Gerät.
 - Feuchte-Thresholds
 - Arduino-Lichtschedule-Zeiten
 - Arduino-Standard-Dimmdauer
-- Soil calibration values
+- `number.soil_air`
+- `number.soil_water`
+- `number.soil_depth_mm`
 - `ha_dim_target_percent`
 - `ha_dim_duration_minutes`
 
 #### Buttons
 - `sync time`
-- `read soil raw value`
+- `button.read_soil_raw_value`
 - `start_ha_dim`
 
 ### 10.4 HA-Dimmauftrag

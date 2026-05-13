@@ -25,15 +25,24 @@ Ein einzelnes HA-Gerät:
 
 ### Bodenfeuchte %
 - Entity-Typ: `sensor`
-- Name: `soil_moisture`
+- Name: `soil_moisture_percent`
 - Richtung: Arduino → HA
 - Einheit: `%`
+- Bedeutung:
+  - berechneter Wert aus `soil_air`, `soil_water`, aktuellem Rohwert und `soil_depth_mm`
+  - Luftreferenz entspricht 0 %
+  - Wasserreferenz bei 120 mm entspricht 100 %
+  - gültige Werte sind auf 0..100 % begrenzt
+  - bei `soil_depth_mm < 20` soll der Wert unavailable/invalid sein
 
 ### Bodenfeuchte Rohwert
 - Entity-Typ: `sensor`
-- Name: `soil_raw`
+- Name: `soil_moisture_raw`
 - Richtung: Arduino → HA
 - Einheit: roh / analog
+- Bedeutung:
+  - aktueller ADC-bezogener Rohwert des Sensors
+  - darf auch publiziert werden, wenn die Prozentberechnung ungültig ist
 
 ### Lüfter-RPM
 - Entity-Typ: `sensor`
@@ -146,6 +155,28 @@ Richtung:
 Persistenz:
 - ja, externes AT24C32-EEPROM via JC_EEPROM
 
+Grenzen:
+- `soil_air`: min 0, max 1000, step 1
+- `soil_water`: min 0, max 1000, step 1
+- `soil_depth_mm`: nutzereingetragener Millimeterwert mit projektdefinierten Grenzen
+
+Hinweise:
+- `soil_air` und `soil_water` verwenden den erwarteten realen Projektbereich; Luftwerte werden unter ca. 900 erwartet.
+- Die Firmware darf interne ADC-Sicherheitsgrenzen separat hart auf 0..4095 setzen.
+- `soil_depth_mm` ist ein aktiver Korrekturparameter, nicht nur informativ.
+- Werte unter 20 mm gelten für die Prozentberechnung als ungültig, weil die erste physische Sensormarkierung bei 20 mm liegt.
+
+Tiefenkorrektur:
+
+```text
+SOIL_REFERENCE_DEPTH_MM = 120
+depth_factor = soil_depth_mm / SOIL_REFERENCE_DEPTH_MM
+percent = (soil_air - raw) / ((soil_air - soil_water) * depth_factor) * 100
+```
+
+Die lineare Tiefenkorrektur ist eine bewusste Näherung. Eine Messreihe existiert,
+das Projekt akzeptiert dieses Modell derzeit aber als ausreichend genau.
+
 ### HA-Dimmauftrag
 - `ha_dim_target_percent`
 - `ha_dim_duration_minutes`
@@ -194,6 +225,33 @@ Bedeutung:
 - `light_auto_mode = OFF`
 
 Bei `light_auto_mode = ON` wird der Befehl ignoriert.
+
+## Bodenfeuchte-Kalibrierungsworkflow
+
+Die Firmware verwaltet keinen Kalibrierungsassistenten und keine interne
+Kalibrierungs-State-Machine. Home Assistant orchestriert den Ablauf mit dem
+generischen Button `read_soil_raw_value` und den drei persistenten Number
+Entities.
+
+Air step:
+- Nutzer legt den Sensor trocken in Luft.
+- HA ruft `button.read_soil_raw_value` auf.
+- HA wartet kurz, bis `sensor.soil_moisture_raw` aktualisiert ist.
+- HA schreibt diesen Wert in `number.soil_air`.
+
+Water step:
+- Nutzer legt den Sensor bei der Referenztiefe von 120 mm in Wasser.
+- HA ruft `button.read_soil_raw_value` auf.
+- HA wartet kurz, bis `sensor.soil_moisture_raw` aktualisiert ist.
+- HA schreibt diesen Wert in `number.soil_water`.
+
+Depth step:
+- Nutzer trägt die reale Einstecktiefe im Substrat manuell in `number.soil_depth_mm` ein.
+- Die Firmware nutzt diesen Wert aktiv für die Prozentberechnung.
+
+Separate Firmware-Buttons wie `capture_soil_air` oder `capture_soil_water`
+sollen nicht ergänzt werden. Der generische Raw-Read-Button plus HA-Scripts oder
+HA-Automationen reicht aus und vermeidet unnötige MQTT-Entities.
 
 ## State-Recovery / Re-Publish
 

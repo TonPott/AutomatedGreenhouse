@@ -137,6 +137,52 @@ Lege lokal eine Datei `Credentials.h` an, basierend auf `Credentials.example.h`.
 Persistente Konfiguration wird im **AT24C32-EEPROM** des RTC-Moduls gespeichert.
 Der Zugriff erfolgt über die Bibliothek **JC_EEPROM**.
 
+## Bodenfeuchte-Kalibrierung
+
+Die Firmware verwaltet keinen Kalibrierungsassistenten und keine interne
+Kalibrierungs-State-Machine. Home Assistant orchestriert den Ablauf.
+
+Die Firmware stellt dafür nur diese Schnittstellen bereit:
+
+- periodisches Lesen des Bodenfeuchte-Rohwerts
+- periodische Berechnung der Bodenfeuchte in Prozent
+- `sensor.soil_moisture_raw`
+- `sensor.soil_moisture_percent`
+- `button.read_soil_raw_value`
+- persistente Konfigurationswerte `number.soil_air`, `number.soil_water` und `number.soil_depth_mm`
+
+Für die internen ADC-Rohwerte darf die Firmware defensiv den 12-bit-Bereich
+0..4095 verwenden. Die persistenten HA-Kalibrierwerte `soil_air` und
+`soil_water` bleiben davon getrennt im erwarteten Projektbereich 0..1000 mit
+Schrittweite 1; reale Luftwerte werden unter ca. 900 erwartet.
+
+Der vorgesehene Ablauf ist:
+
+1. Für den Luftwert liegt der Sensor trocken in Luft. HA ruft `button.read_soil_raw_value` auf, wartet kurz auf den aktualisierten Wert von `sensor.soil_moisture_raw` und schreibt ihn nach `number.soil_air`.
+2. Für den Wasserwert liegt der Sensor bei der Referenztiefe von 120 mm in Wasser. HA ruft wieder `button.read_soil_raw_value` auf, wartet auf `sensor.soil_moisture_raw` und schreibt ihn nach `number.soil_water`.
+3. Die reale Einstecktiefe im Substrat wird manuell in `number.soil_depth_mm` eingetragen.
+
+Separate Firmware-Buttons wie `capture_soil_air` oder `capture_soil_water`
+sollen nicht ergänzt werden. Der generische Raw-Read-Button plus HA-Scripts oder
+HA-Automationen reicht aus und vermeidet zusätzliche MQTT-Entities.
+
+`soil_depth_mm` ist ein aktiver Korrekturparameter. Die Firmware verwendet eine
+lineare Tiefenkorrektur mit `SOIL_REFERENCE_DEPTH_MM = 120`, weil die
+Sensorantwort davon abhängt, wie viel aktive Sensorfläche im Medium steckt.
+Konzeptionell gilt:
+
+```text
+depth_factor = soil_depth_mm / SOIL_REFERENCE_DEPTH_MM
+percent = (soil_air - raw) / ((soil_air - soil_water) * depth_factor) * 100
+```
+
+Der Luftreferenzwert entspricht 0 %, der Wasserreferenzwert bei 120 mm
+entspricht 100 %. Gültige Ergebnisse werden auf 0..100 % begrenzt. Werte unter
+20 mm gelten für die Prozentberechnung als ungültig, weil die erste physische
+Sensormarkierung bei 20 mm liegt; der Rohwert darf weiter publiziert werden.
+Die lineare Korrektur ist eine bewusste Näherung. Es gibt eine Messreihe, das
+Projekt akzeptiert dieses Modell derzeit aber als ausreichend genau.
+
 ## Zeitsynchronisation und Lichtzeitplan
 
 Die Zeit wird per NTP synchronisiert:
@@ -162,7 +208,7 @@ Weitere Details stehen in `entity-model.md`.
 
 - **Licht-Dimmung über den Sosen-Treiber ist noch nicht final gelöst.** Der dokumentierte RC-/PC817-Ansatz bildet den erwarteten Widerstands-/Stromsenken-Eingang des Treibers bisher nicht zuverlässig nach.
 - **Die endgültige Hardwarestrategie für die Dimmung ist offen.** Wahrscheinlich wird ein Widerstands-Stufennetzwerk oder eine andere robuste, zum Treiber passende Lösung nötig.
-- **Das Home-Assistant-Frontend ist noch nicht spezifiziert und umgesetzt.** Zeitdarstellung, Kalibrierungsdialog und bedingte Sichtbarkeit im Dashboard fehlen noch als sauberes Konzept.
+- **Das Home-Assistant-Frontend ist noch nicht umgesetzt.** Zeitdarstellung, HA-Scripts/Automationen für den dokumentierten Bodenfeuchte-Kalibrierungsablauf und bedingte Sichtbarkeit im Dashboard fehlen noch als Umsetzung.
 - **Die von Codex erzeugte Firmware muss weiter gegen die aktuelle Dokumentation geprüft werden.** Besonders wichtig bleiben RTC-Alarm-Logik, Persistenz, HA-Entities und das Zusammenspiel zwischen Arduino-Auto-Mode und HA-Steuerung.
 - **Der reale Aufbau muss weiter hardwareseitig validiert werden.** Dazu gehören insbesondere Dimmverhalten, Versorgungskonzept und das Verhalten im Offline-Fallback.
 
@@ -178,7 +224,7 @@ Weitere Details stehen in `entity-model.md`.
 
 3. **Home-Assistant-Frontend-Konzept ergänzen**
    - Zeitdarstellung für `light_on_time` / `light_off_time`
-   - Kalibrierungsablauf für den Bodenfeuchtesensor
+   - HA-Scripts/Automationen für den dokumentierten Bodenfeuchte-Kalibrierungsablauf
    - Dashboard-Layout mit bedingter Sichtbarkeit je nach Modus und Bedienbarkeit
 
 4. **HA-Dashboard und Automationen umsetzen**
