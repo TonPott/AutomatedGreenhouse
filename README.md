@@ -108,16 +108,21 @@ Verbindliche analoge Kanalverschaltung:
 Helligkeitsmapping (Firmware-Konzept):
 
 - Firmware arbeitet logisch mit `0..100 %` Helligkeit
+- Verbindliche Richtung am Lampendimmereingang:
+  - minimaler effektiver Widerstand / näherungsweise `0 Ω` = `0 %` Helligkeit
+  - maximaler effektiver Widerstand / näherungsweise `100 kΩ` = `100 %` Helligkeit
 - Mapping auf RDAC-Werte ist verbindlich:
-  - `0 % = W2 255, W1 0`
+  - `0 % = W2 0, W1 255`
   - `50 % = W2 0, W1 0`
-  - `100 % = W2 0, W1 255`
-- `0..50 %`: zuerst Kanal 2 herunterregeln
-- `50..100 %`: danach Kanal 1 hochregeln
+  - `100 % = W2 255, W1 0`
+- `0..50 %`: zuerst Kanal 1 / `W1` so verändern, dass der Gesamtwiderstand vom Minimalwert zum Mittelpunkt steigt
+- `50..100 %`: danach Kanal 2 / `W2` so verändern, dass der Gesamtwiderstand vom Mittelpunkt zum Maximalwert steigt
+- Genutzte Rheostat-Strecken: `A1-W1` auf Kanal 1 und `W2-B2` auf Kanal 2
 
 Widerstandsgrenzen (präzisiert):
 
-- angestrebter Bereich am Lichteingang bis ca. `100 kΩ`; ein idealer `0 Ω`-Endpunkt ist physikalisch nicht als perfekter Fixwert garantiert
+- angestrebter Bereich am Lichteingang ca. `0..100 kΩ`; ein idealer `0 Ω`-Endpunkt ist physikalisch nicht als perfekter Fixwert garantiert
+- der AD5263 hat im Rheostat-Betrieb einen Restwiderstand, daher ist `0 Ω` als minimaler effektiver Widerstand bzw. näherungsweise `0 Ω` zu verstehen
 - praktisch mit zwei AD5263-Kanälen im Rheostat-Betrieb angenähert
 - konkrete untere/obere Limits werden später über Firmware-Konstanten begrenzt
 - diese Limits sind **nicht** über HA konfigurierbar

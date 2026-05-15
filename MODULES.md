@@ -62,7 +62,7 @@ Zentrale Compile-Time-Konstanten.
   - `LIGHT_DIM_W1_RDAC_MIN_EFFECTIVE`
   - `LIGHT_DIM_W1_RDAC_MAX_EFFECTIVE`
 - `LIGHT_DIM_MAPPING_SPLIT_PERCENT = 50` (Split zwischen W2-Phase und W1-Phase)
-- Hinweis: Die Bezeichner sind dokumentativ beispielhaft; verbindlich ist die getrennte Begrenzung pro Kanal.
+- Hinweis: Die Bezeichner sind dokumentativ beispielhaft; verbindlich ist die getrennte Begrenzung pro Kanal und die Richtung `minimaler Widerstand = 0 %`, `maximaler Widerstand = 100 %`.
 
 - `DEFAULT_TEMP_HIGH_SET`
 - `DEFAULT_TEMP_HIGH_CLEAR`
@@ -269,23 +269,26 @@ Steuerung von AD5263-Dimmer, SHDN-Pin, Relais und Dimmaufträgen.
 - SHDN liegt auf `PIN_LIGHT_DIM_SHDN` mit externem `10 kΩ` Pull-down
 - kein interner Pull-up auf SHDN
 - analoge Kanalverschaltung: `Dim+ -> W2 -> B2 -> A1 -> W1 -> Dim-`
+- Dimmereingang der Lampe: minimaler effektiver Widerstand / näherungsweise `0 Ω` = `0 %`, maximaler effektiver Widerstand / näherungsweise `100 kΩ` = `100 %`
 
 ### Helligkeitsmapping (verbindlich)
 
 Referenzpunkte:
 
-- `0 %  => W2=255, W1=0`
+- `0 %  => W2=0,   W1=255`
 - `50 % => W2=0,   W1=0`
-- `100 % => W2=0,  W1=255`
+- `100 % => W2=255, W1=0`
 
 Zwischenbereiche:
 
-- `0..50 %`: zuerst Kanal 2 herunterregeln (W2)
-- `50..100 %`: danach Kanal 1 hochregeln (W1)
+- `0..50 %`: zuerst Kanal 1 / `W1` so verändern, dass der Gesamtwiderstand vom Minimalwert zum Mittelpunkt steigt
+- `50..100 %`: danach Kanal 2 / `W2` so verändern, dass der Gesamtwiderstand vom Mittelpunkt zum Maximalwert steigt
+- genutzte Rheostat-Strecken: `A1-W1` auf Kanal 1 und `W2-B2` auf Kanal 2
 
 Dimmergrenzen:
 
 - effektive untere/obere Grenzen werden über Firmware-Konstanten begrenzt
+- `0 Ω` ist als minimaler effektiver Widerstand bzw. näherungsweise `0 Ω` zu verstehen, da der AD5263 im Rheostat-Betrieb einen Restwiderstand hat
 - diese Grenzen sind nicht über HA konfigurierbar
 
 ### Boot- und Ausschaltsequenz (verbindlich)

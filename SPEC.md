@@ -167,20 +167,30 @@ Verbindlicher Signalpfad:
 
 Die Firmware arbeitet logisch weiter mit `0..100 %` Helligkeit und mappt intern auf RDAC-Werte.
 
+Fachliche Richtung am Lampendimmereingang:
+
+- niedriger Widerstand zwischen `Dim+` und `Dim-` = niedrige Helligkeit
+- hoher Widerstand zwischen `Dim+` und `Dim-` = hohe Helligkeit
+- minimaler effektiver Widerstand / näherungsweise `0 Ω` entspricht `0 %`
+- maximaler effektiver Widerstand / näherungsweise `100 kΩ` entspricht `100 %`
+
 Verbindliche Punkte:
 
-- `0 % = W2 255, W1 0`
+- `0 % = W2 0, W1 255`
 - `50 % = W2 0, W1 0`
-- `100 % = W2 0, W1 255`
+- `100 % = W2 255, W1 0`
 
 Verbindliche Zwischenlogik:
 
-- von `0 %` bis `50 %` wird zuerst Kanal 2 heruntergeregelt
-- von `50 %` bis `100 %` wird danach Kanal 1 hochgeregelt
+- von `0 %` bis `50 %` verändert sich zuerst Kanal 1 / `W1`, sodass der Gesamtwiderstand vom Minimalwert zum Mittelpunkt steigt
+- von `50 %` bis `100 %` verändert sich danach Kanal 2 / `W2`, sodass der Gesamtwiderstand vom Mittelpunkt zum Maximalwert steigt
+- auf Kanal 1 wird die Strecke `A1-W1` genutzt
+- auf Kanal 2 wird die Strecke `W2-B2` genutzt
 
 ### 6.6 Widerstandsgrenzen
 
 - Zielbereich am Lichteingang: nominell ca. `0..100 kΩ`
+- `0 Ω` ist dabei als minimaler effektiver Widerstand bzw. näherungsweise `0 Ω` zu verstehen, da der AD5263 im Rheostat-Betrieb einen Restwiderstand hat
 - praktisch durch den AD5263BRUZ50 mit zwei Kanälen im Rheostat-Betrieb angenähert
 - tatsächlich genutzte untere/obere Limits werden als projektinterne Firmware-Konstanten gesetzt
 - diese Dimmer-Grenzwerte sind **nicht** über HA konfigurierbar
