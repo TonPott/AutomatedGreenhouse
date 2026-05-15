@@ -28,7 +28,7 @@ Das System soll sowohl mit Home Assistant als auch bei Verbindungsverlust lokal 
 - ViparSpectra P1000 Grow-Light
   - 230-V-Zuleitung über 3,3-V-Relaismodul geschaltet
   - Dimmung über einen variablen Widerstand zwischen `Dim+` und `Dim-`
-- AD5263BRUZ50 (auf TSOPP24-Adapter) als digital gesteuerter Widerstand
+- AD5263BRUZ50 (auf TSSOP-24-Adapter) als digital gesteuerter Widerstand
 - Home Assistant mit MQTT
 
 ## Projektüberblick für neue Nutzer
@@ -73,109 +73,25 @@ Zusätzlich wird der **SQW/INT-Ausgang** der DS3231 für den Arduino-internen Li
 
 ### 2. Licht-Dimmer (AD5263BRUZ50)
 
-Der Licht-Dimmer wird als **digital einstellbarer Widerstand** zwischen `Dim+` und `Dim-` umgesetzt.
-Es gibt im Lichtsystem weiterhin zwei getrennte Pfade:
+Der alte PWM-/RC-/PC817-Dimmerpfad ist in diesem Branch nicht mehr das Zielkonzept. Das Grow-Light wird stattdessen über einen `AD5263BRUZ50` als digital einstellbarer Widerstand zwischen `Dim+` und `Dim-` gedimmt.
 
-- AD5263-Dimmerpfad (analoger Widerstandspfad)
-- hartes Abschalten über Relais
+Hardware-Kurzfassung:
 
-Verbindliche AD5263-Hardware:
-
-- Bauteil: `AD5263BRUZ50`
-- Montage über TSOPP24-Adapter
-- `VDD = 12 V`
-- `VSS = GND`
-- `VL/VLOGIC = 3,3 V`
-- Abblockung `VDD` gegen `VSS`: `100 nF` oder `1 µF`
-- Abblockung `VL` gegen `GND`: `100 nF`
+- `AD5263BRUZ50` auf TSSOP-24-Adapter
+- zwei AD5263-Kanäle in Reihe für näherungsweise `0..100 kΩ`
+- niedriger effektiver Widerstand = niedrige Helligkeit, hoher effektiver Widerstand = hohe Helligkeit
 - keine galvanische Trennung im Dimmerpfad
+- hartes Abschalten der 230-V-Zuleitung bleibt Aufgabe des Relais
 
-Verbindlicher I²C-Betrieb:
+Pin-Kurzfassung:
 
-- `DIS = 1` (I²C-Modus)
-- `SDI/SDA` an SDA
-- `CLK/SCL` an SCL
-- `CS/AD0` und `RES/AD1` als Adressbits
-- `AD0 = GND`, `AD1 = GND`
-- feste 7-Bit-Adresse: `0x2C`
-- Pull-ups der I²C-Leitungen auf `3,3 V`
+- Light Power Relay: Pin `3`
+- Light Dim `SHDN`: Pin `4` mit externem `10 kΩ` Pull-down
+- Light Dimmer: I²C über `SDA/SCL`, Adresse `0x2C`
 
-Verbindliche analoge Kanalverschaltung:
+Die exakte AD5263-Verschaltung, das RDAC-Mapping, die Boot-Sequenz und die Fault-/Readback-Strategie stehen in `SPEC.md` und `MODULES.md`.
 
-- Verwendet werden Kanal 1 und Kanal 2 (`W` = Wiper, `A/B` = Enden der Widerstandsbahn)
-- Signalpfad: `Dim+ -> W2 -> B2 -> A1 -> W1 -> Dim-`
-
-Helligkeitsmapping (Firmware-Konzept):
-
-- Firmware arbeitet logisch mit `0..100 %` Helligkeit
-- Verbindliche Richtung am Lampendimmereingang:
-  - minimaler effektiver Widerstand / näherungsweise `0 Ω` = `0 %` Helligkeit
-  - maximaler effektiver Widerstand / näherungsweise `100 kΩ` = `100 %` Helligkeit
-- Mapping auf RDAC-Werte ist verbindlich:
-  - `0 % = W2 0, W1 255`
-  - `50 % = W2 0, W1 0`
-  - `100 % = W2 255, W1 0`
-- `0..50 %`: zuerst Kanal 1 / `W1` so verändern, dass der Gesamtwiderstand vom Minimalwert zum Mittelpunkt steigt
-- `50..100 %`: danach Kanal 2 / `W2` so verändern, dass der Gesamtwiderstand vom Mittelpunkt zum Maximalwert steigt
-- Genutzte Rheostat-Strecken: `A1-W1` auf Kanal 1 und `W2-B2` auf Kanal 2
-
-Widerstandsgrenzen (präzisiert):
-
-- angestrebter Bereich am Lichteingang ca. `0..100 kΩ`; ein idealer `0 Ω`-Endpunkt ist physikalisch nicht als perfekter Fixwert garantiert
-- der AD5263 hat im Rheostat-Betrieb einen Restwiderstand, daher ist `0 Ω` als minimaler effektiver Widerstand bzw. näherungsweise `0 Ω` zu verstehen
-- praktisch mit zwei AD5263-Kanälen im Rheostat-Betrieb angenähert
-- konkrete untere/obere Limits werden später über Firmware-Konstanten begrenzt
-- diese Limits sind **nicht** über HA konfigurierbar
-
-### 3. SHDN und Schaltreihenfolge
-
-`SHDN` wird aktiv verwendet und liegt auf Pin `4` (hält den Digipot beim Boot in einem sicheren Zustand).
-Verbindlich vorgesehen ist ein externer `10 kΩ` Pull-down nach GND.
-Durch diesen externen Pull-down wird kein interner Pull-up für `SHDN` verwendet.
-
-Wichtig:
-
-- Der AD5263 startet bei Power-on auf Midscale.
-- Ohne Sequenzierung kann das Licht beim Zuschalten mit falscher Helligkeit starten.
-
-Verbindliche Startreihenfolge:
-
-1. AD5263 bleibt beim Boot zunächst in `SHDN`
-2. Konfiguration laden
-3. Sollzustand rekonstruieren
-4. Widerstandswert setzen
-5. `SHDN` freigeben
-6. erst danach Relais schließen
-
-Verbindliche Ausschaltreihenfolge:
-
-1. Relais öffnen
-2. danach AD5263 in `SHDN`
-
-### 4. Fehlerverhalten Lichtpfad
-
-- Wenn AD5263 beim Boot nicht erreichbar ist: Relais bleibt offen, Licht bleibt aus, `light_fault` und `light_fault_reason` werden gesetzt.
-- Wenn AD5263 im Betrieb ausfällt oder ein Schreib-/Readback-Fehler erkannt wird: Relais öffnen, `light_fault` setzen, `light_fault_reason` aktualisieren.
-- Fault-Flags werden in HA als `binary_sensor` publiziert:
-  - `binary_sensor.light_fault`
-  - `binary_sensor.fan_fault`
-  - `binary_sensor.sht_fault`
-  - `binary_sensor.rtc_fault`
-  - `binary_sensor.eeprom_fault`
-- Die textuelle Diagnose wird separat als `sensor.light_fault_reason` publiziert.
-- Typische Werte für `light_fault_reason`:
-  - `ad5263_not_found`
-  - `ad5263_write_failed`
-  - `ad5263_readback_mismatch`
-
-Gestufte Readback-/Plausibilitätsstrategie (rate-limited):
-
-1. Beim Boot, vor `SHDN`-Freigabe und vor Relais-EIN: RDAC-Zielwerte schreiben und einmal per Readback prüfen.
-2. Bei diskreten Kommandos (manueller Sprung, Arduino-Dimmjob-Start, HA-Dimmjob-Start, Resume-State-Restore): Write, optional ein kurzer Retry, dann Readback.
-3. Während langer Dimmfahrten kein Readback auf jedem Interpolationsschritt; stattdessen am Rampenende verifizieren.
-4. Bei I²C-NACK, Schreibfehler oder Readback-Mismatch: ein kurzer Retry, danach bei weiterem Fehler Relais öffnen, `light_fault` setzen, `light_fault_reason` setzen.
-
-### 5. Lüfter-Tacho-Signalaufbereitung
+### 3. Lüfter-Tacho-Signalaufbereitung
 
 Das Lüfter-Tachosignal wird über eine **2N3904-Transistorstufe** auf 3,3-V-Logik für den Nano 33 IoT umgesetzt:
 
@@ -235,6 +151,38 @@ Danach dient die **DS3231** als lokale Zeitbasis.
 Der Arduino-interne Lichtzeitplan wird in die beiden DS3231-Alarmregister gespiegelt.
 Die Alarmereignisse werden über den SQW/INT-Ausgang an den Arduino gemeldet.
 
+## Bodenfeuchte-Kalibrierung
+
+Die Firmware verwaltet keinen Kalibrierungsassistenten und keine interne Kalibrierungs-State-Machine. Home Assistant orchestriert den Ablauf.
+
+Die Firmware stellt dafür nur diese Schnittstellen bereit:
+
+- periodisches Lesen des Bodenfeuchte-Rohwerts
+- periodische Berechnung der Bodenfeuchte in Prozent
+- `sensor.soil_moisture_raw`
+- `sensor.soil_moisture_percent`
+- `button.read_soil_raw_value`
+- persistente Konfigurationswerte `number.soil_air`, `number.soil_water` und `number.soil_depth_mm`
+
+Für interne ADC-Rohwerte darf die Firmware defensiv den 12-bit-Bereich `0..4095` verwenden. Die persistenten HA-Kalibrierwerte `soil_air` und `soil_water` bleiben davon getrennt im erwarteten Projektbereich `0..1000` mit Schrittweite `1`.
+
+Der vorgesehene Ablauf ist:
+
+1. Für den Luftwert liegt der Sensor trocken in Luft. HA ruft `button.read_soil_raw_value` auf, wartet auf den aktualisierten Wert von `sensor.soil_moisture_raw` und schreibt ihn nach `number.soil_air`.
+2. Für den Wasserwert liegt der Sensor bei der Referenztiefe von `120 mm` in Wasser. HA ruft wieder `button.read_soil_raw_value` auf, wartet auf `sensor.soil_moisture_raw` und schreibt ihn nach `number.soil_water`.
+3. Die reale Einstecktiefe im Substrat wird manuell in `number.soil_depth_mm` eingetragen.
+
+Separate Firmware-Buttons wie `capture_soil_air` oder `capture_soil_water` sollen nicht ergänzt werden.
+
+`soil_depth_mm` ist ein aktiver Korrekturparameter. Die Firmware verwendet eine lineare Tiefenkorrektur mit `SOIL_REFERENCE_DEPTH_MM = 120`:
+
+```text
+depth_factor = soil_depth_mm / SOIL_REFERENCE_DEPTH_MM
+percent = (soil_air - raw) / ((soil_air - soil_water) * depth_factor) * 100
+```
+
+Der Luftreferenzwert entspricht `0 %`, der Wasserreferenzwert bei `120 mm` entspricht `100 %`. Gültige Ergebnisse werden auf `0..100 %` begrenzt. Wenn `soil_depth_mm < 20`, ist der Prozentwert ungültig/unavailable; der Rohwert darf weiter publiziert werden.
+
 ## Home Assistant
 
 Die MQTT-/HA-Integration basiert auf:
@@ -248,9 +196,11 @@ Weitere Details stehen in `docs/entity-model.md`.
 
 - Die finale Firmware-Implementierung muss noch vollständig gegen diese AD5263-Spezifikation verifiziert werden.
 - Der reale Aufbau muss hardwareseitig validiert werden, insbesondere Mapping, Grenzwerte, SHDN-Verhalten und Fault-Reaktion.
+- HA-Scripts/Automationen für den dokumentierten Bodenfeuchte-Kalibrierungsablauf müssen noch im Home-Assistant-Setup umgesetzt werden.
 
 ## Roadmap
 
 1. AD5263-Mapping und Dimmergrenzen im realen Aufbau verifizieren
 2. Resume-State- und Fault-Strategie in der Firmware vollständig nachziehen
-3. End-to-End-Tests für Boot-Sequenz, Restart-Recovery und Fehlerpfade durchführen
+3. HA-Automationen für `button.read_soil_raw_value` und das Schreiben nach `number.soil_air` / `number.soil_water` ergänzen
+4. End-to-End-Tests für Boot-Sequenz, Restart-Recovery und Fehlerpfade durchführen

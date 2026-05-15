@@ -16,6 +16,7 @@ Das Repository befindet sich in einer Umbauphase auf Basis bestehender Firmware.
 - Vorhandener Code wird gezielt refactort und migriert.
 - Keine parallelen Altpfade als Runtime-Option beibehalten, wenn sie nicht ausdrücklich dokumentiert sind.
 - Der alte PWM-/RC-/PC817-Lichtpfad ist kein gültiges Zielkonzept mehr.
+- Aktueller Zielpfad für die Lichtdimmung ist der AD5263BRUZ50-Widerstandspfad.
 - Maßgebliche Quellen für den Umbau sind:
   - `SPEC.md`
   - `MODULES.md`
@@ -107,6 +108,7 @@ erneut an HA publiziert werden.
 - Keine interne Kalibrierroutine in der Firmware erfinden.
 - Firmware liefert Rohwerte und speichert finale Kalibrierdaten.
 - HA führt den Benutzer durch die Routine.
+- Keine zusätzlichen Soil-Capture-Buttons wie `capture_soil_air` oder `capture_soil_water` einführen, sofern nicht ausdrücklich gefordert.
 
 ### 13. Änderungen zuerst an Doku anlehnen
 Vor größeren Codeänderungen:

@@ -25,13 +25,16 @@ Ein einzelnes HA-Gerät:
 
 ### Bodenfeuchte Prozent
 - Entity-Typ: `sensor`
-- Name: `soil_moisture`
+- Name: `soil_moisture_percent`
 - Richtung: Arduino → HA
 - Einheit: `%`
+- Bedeutung:
+  - berechneter Wert aus `soil_air`, `soil_water`, aktuellem Rohwert und `soil_depth_mm`
+  - bei `soil_depth_mm < 20` soll der Wert unavailable/invalid sein
 
 ### Bodenfeuchte Rohwert
 - Entity-Typ: `sensor`
-- Name: `soil_raw`
+- Name: `soil_moisture_raw`
 - Richtung: Arduino → HA
 - Einheit: roh / analog
 
@@ -89,12 +92,7 @@ Ein einzelnes HA-Gerät:
   - `ad5263_write_failed`
   - `ad5263_readback_mismatch`
 
-Readback-/Plausibilitätsstrategie für Fault-Erkennung (Firmware-seitig):
-
-1. Beim Boot vor `SHDN`-Freigabe und vor Relais-EIN prüfen.
-2. Bei diskreten Lichtkommandos (manuell, Jobstart, Resume-Restore) per Write + Readback prüfen.
-3. Bei langen Rampen nicht pro Zwischenschritt readbacken, sondern am Rampenende verifizieren.
-4. Bei I²C/Write/Readback-Fehlern 1 kurzer Retry, danach Fault setzen und Relais öffnen.
+Die detaillierte AD5263-Readback- und Retry-Strategie ist in `MODULES.md` beschrieben.
 
 Nicht Teil des Modells:
 
@@ -207,6 +205,28 @@ Richtung:
 Persistenz:
 - ja, externes AT24C32-EEPROM via JC_EEPROM
 
+Grenzen:
+
+- `soil_air`: min 0, max 1000, step 1
+- `soil_water`: min 0, max 1000, step 1
+- `soil_depth_mm`: nutzereingetragener Millimeterwert mit projektdefinierten Grenzen
+
+Bemerkung:
+
+- `soil_air` und `soil_water` sind user-facing Kalibrierwerte; interne ADC-Rohwerte dürfen firmwareseitig defensiv auf `0..4095` begrenzt werden.
+- `soil_depth_mm` ist ein aktiver Korrekturparameter, nicht nur informativ.
+- Wasserreferenz ist `120 mm`.
+
+Konzeptionelle Prozentberechnung:
+
+```text
+SOIL_REFERENCE_DEPTH_MM = 120
+depth_factor = soil_depth_mm / SOIL_REFERENCE_DEPTH_MM
+percent = (soil_air - raw) / ((soil_air - soil_water) * depth_factor) * 100
+```
+
+Gültige Prozentwerte werden auf `0..100 %` begrenzt. Wenn `soil_depth_mm < 20`, bleibt `sensor.soil_moisture_percent` unavailable/invalid; `sensor.soil_moisture_raw` darf weiter publiziert werden.
+
 ### HA-Dimmauftrag
 - `ha_dim_target_percent`
 - `ha_dim_duration_minutes`
@@ -240,6 +260,9 @@ Bedeutung:
 - Wirkung:
   - aktuellen Rohwert sofort auslesen und publizieren
   - gedacht für die HA-geführte Kalibrierung
+  - HA schreibt den publizierten Rohwert anschließend in `number.soil_air` oder `number.soil_water`
+
+Separate Buttons wie `capture_soil_air` oder `capture_soil_water` sind nicht Teil des Modells.
 
 ### Start HA Dim
 - Entity-Typ: `button`

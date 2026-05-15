@@ -134,7 +134,7 @@ Das Licht hat zwei getrennte Steuerpfade:
 ### 6.2 Verbindliche AD5263-Hardware
 
 - Bauteil: `AD5263BRUZ50`
-- Montage über TSOPP24-Adapter
+- Montage über TSSOP-24-Adapter
 - Versorgung:
   - `VDD = 12 V`
   - `VSS = GND`
@@ -284,31 +284,9 @@ Verbindliche Ausschaltreihenfolge:
 
 ### 6.14 Fehlerstrategie Lichtpfad
 
-Verbindliche Readback-/Plausibilitätsstrategie (gestuft und rate-limited):
+Der AD5263 muss vor dem Einschalten des Relais erreichbar sein und einen plausibel gesetzten Zielwiderstand liefern. Bei AD5263-Kommunikations-, Schreib- oder Plausibilitätsfehlern bleibt bzw. wird das Relais offen, das Licht bleibt aus und `light_fault` wird gesetzt.
 
-1. Beim Boot, vor `SHDN`-Freigabe und vor Relais-EIN:
-   - AD5263 per I²C ansprechen
-   - definierte RDAC-Werte für W1/W2 schreiben
-   - einmal per Readback prüfen
-   - nur bei konsistentem Ergebnis in die Einschaltsequenz gehen
-
-2. Bei diskreten Kommandos:
-   - manuellem Helligkeitssprung
-   - Start eines Arduino-Dimmjobs
-   - Start eines HA-Dimmjobs
-   - Wiederherstellung aus Resume-State
-   jeweils:
-   - Write
-   - optional 1 kurzer Retry
-   - Readback prüfen
-
-3. Während langer Dimmfahrten:
-   - kein Readback auf jedem Interpolationsschritt
-   - Readback-Verifikation am Rampenende
-
-4. Fehlerbehandlung:
-   - bei I²C-NACK / keiner Antwort, Schreibfehler oder Readback-Mismatch: 1 kurzer Retry
-   - bei weiterem Fehler: Relais öffnen, `light_fault = true`, `light_fault_reason` setzen
+Die technische Retry-/Readback-Strategie ist Aufgabe der Modulbeschreibung in `MODULES.md`.
 
 Vorgesehene Textwerte für `light_fault_reason`:
 
@@ -360,21 +338,32 @@ Ein zusätzlicher HA-Schedule ist davon getrennt und nur wirksam, wenn `light_au
 
 ### 8.1 Messwerte
 Verfügbar sein sollen:
-- berechnete Bodenfeuchte in %
-- Rohwert des Sensors
+- `sensor.soil_moisture_percent`: berechnete Bodenfeuchte in %
+- `sensor.soil_moisture_raw`: Rohwert des Sensors
 
 ### 8.2 Kalibrierparameter
-- Air value
-- Water value
-- Sensor depth
+- `number.soil_air`
+- `number.soil_water`
+- `number.soil_depth_mm`
 
 Diese Werte:
 - sind persistent gespeichert
 - werden in HA angezeigt
 - können in HA geändert werden
 
+`soil_air` und `soil_water` bleiben user-facing Persistenzwerte im erwarteten Projektbereich:
+
+- min: 0
+- max: 1000
+- step: 1
+
+Davon getrennt darf das Firmware-Sensormodul interne ADC-Rohwerte defensiv auf den 12-bit-Sicherheitsbereich `0..4095` begrenzen.
+
+`soil_depth_mm` ist ein aktiver Korrekturparameter für die Prozentberechnung, nicht nur ein Informationswert.
+
 ### 8.3 Kalibrierung
 Die Kalibrierroutine läuft vollständig in HA.
+Die Firmware verwaltet keinen Kalibrierungsassistenten und keine interne Kalibrierungs-State-Machine.
 
 Daher braucht die Firmware nicht:
 - den Kalibrierschritt zu kennen
@@ -383,15 +372,73 @@ Daher braucht die Firmware nicht:
 - einzelne Zwischenschritte zu speichern
 
 Die Firmware muss nur:
+- periodisch den Rohwert lesen
+- periodisch den Prozentwert aus `soil_air`, `soil_water`, aktuellem Rohwert und `soil_depth_mm` berechnen
+- `sensor.soil_moisture_raw` publizieren
+- `sensor.soil_moisture_percent` publizieren, sofern die Auswertung gültig ist
 - den Rohwert auf Anforderung liefern
-- am Ende die finalen Kalibrierdaten übernehmen
-- diese per Befehl in das externe EEPROM schreiben
+- finale Änderungen an `number.soil_air`, `number.soil_water` und `number.soil_depth_mm` übernehmen
+- geänderte Persistenzwerte im externen EEPROM speichern
 
 ### 8.4 HA-Bedienung
-Es reicht ein Button:
-- `read soil raw value`
+Es reicht ein Firmware-Button:
 
-### 8.5 Messintervall
+- `button.read_soil_raw_value`
+
+Separate Firmware-Buttons wie `capture_soil_air` oder `capture_soil_water` sollen nicht eingeführt werden. Der vorhandene generische Button plus HA-Scripts/Automationen genügt und vermeidet unnötige MQTT-Entities.
+
+Vorgesehener HA-unterstützter Ablauf:
+
+1. Air step:
+   - Nutzer legt den Sensor trocken in Luft.
+   - HA ruft `button.read_soil_raw_value` auf.
+   - HA wartet kurz, bis `sensor.soil_moisture_raw` aktualisiert ist.
+   - HA schreibt diesen Wert in `number.soil_air`.
+
+2. Water step:
+   - Nutzer legt den Sensor bei der Referenztiefe von `120 mm` in Wasser.
+   - HA ruft `button.read_soil_raw_value` auf.
+   - HA wartet kurz, bis `sensor.soil_moisture_raw` aktualisiert ist.
+   - HA schreibt diesen Wert in `number.soil_water`.
+
+3. Depth step:
+   - Nutzer trägt die reale Einstecktiefe im Substrat manuell in `number.soil_depth_mm` ein.
+   - Die Firmware nutzt diesen Wert aktiv für die korrigierte Prozentberechnung.
+
+### 8.5 Tiefenkorrektur und Prozentberechnung
+Die Sensorantwort hängt davon ab, wie viel aktive Sensorfläche tatsächlich im Medium steckt. Die Firmware verwendet deshalb eine einfache lineare Tiefenkorrektur.
+
+Definitionen:
+
+- `SOIL_REFERENCE_DEPTH_MM = 120`
+- `soil_air`: Rohwert mit Sensor vollständig in Luft
+- `soil_water`: Rohwert mit Sensor in Wasser bei 120 mm Referenztiefe
+- `soil_depth_mm`: tatsächliche Einstecktiefe im Substrat
+
+Konzept:
+
+```text
+depth_factor = soil_depth_mm / SOIL_REFERENCE_DEPTH_MM
+percent = (soil_air - raw) / ((soil_air - soil_water) * depth_factor) * 100
+```
+
+Die Luftreferenz entspricht `0 %`, die Wasserreferenz bei `120 mm` entspricht `100 %`. Gültige Ergebnisse werden auf `0..100 %` begrenzt. Die Formel ist eine bewusste lineare Näherung; es gibt eine Messreihe, das Projekt akzeptiert dieses Modell derzeit aber als ausreichend genau.
+
+### 8.6 Ungültige Tiefe
+Werte unter `20 mm` gelten für die Bodenfeuchte-Prozentberechnung als ungültig.
+
+Begründung:
+
+- Die erste physische Sensormarkierung liegt bei `20 mm`.
+- Messungen darunter gelten nicht als zuverlässig.
+
+Firmware-Verhalten:
+
+- Wenn `soil_depth_mm < 20`, soll `sensor.soil_moisture_percent` als ungültig bzw. unavailable behandelt werden.
+- `sensor.soil_moisture_raw` darf weiterhin publiziert werden.
+- Die Firmware soll in diesem Fall keinen irreführenden korrigierten Prozentwert erzeugen.
+
+### 8.7 Messintervall
 Der Bodenfeuchtesensor soll:
 - alle **10 Sekunden** ausgelesen werden
 - an HA veröffentlicht werden
@@ -459,8 +506,8 @@ Das Arduino erscheint als ein HA-Gerät.
 #### Sensoren
 - `temperature`
 - `humidity`
-- `soil_moisture`
-- `soil_raw`
+- `soil_moisture_percent`
+- `soil_moisture_raw`
 - `fan_rpm`
 - `light_fault`
 - `fan_fault`
@@ -496,13 +543,15 @@ Typzuordnung in HA:
 - Feuchte-Thresholds
 - Arduino-Lichtschedule-Zeiten
 - Arduino-Standard-Dimmdauer
-- Soil calibration values
+- `soil_air`
+- `soil_water`
+- `soil_depth_mm`
 - `ha_dim_target_percent`
 - `ha_dim_duration_minutes`
 
 #### Buttons
 - `sync time`
-- `read soil raw value`
+- `read_soil_raw_value`
 - `start_ha_dim`
 
 ### 10.4 HA-Dimmauftrag
@@ -656,9 +705,8 @@ Vorgesehene Inhalte von `light_fault_reason`:
 Verbindliche Verhaltensregeln:
 
 - AD5263 beim Boot nicht erreichbar: Relais offen, Licht aus, `light_fault` setzen, `light_fault_reason = ad5263_not_found`.
-- Diskrete Lichtkommandos (manuell, Jobstart, Restore) mit Write + Readback prüfen; 1 kurzer Retry ist zulässig.
-- Lange Dimmrampen nicht auf jedem Zwischenschritt readbacken; stattdessen am Rampenende verifizieren.
-- AD5263-Fehler im Betrieb (I²C/Write/Readback nach Retry): Relais öffnen, `light_fault` setzen, `light_fault_reason` aktualisieren.
+- AD5263-Fehler im Betrieb: Relais öffnen, `light_fault` setzen, `light_fault_reason` aktualisieren.
+- Die konkrete Retry-/Readback-Strategie ist in `MODULES.md` dokumentiert.
 - Lüfterfehler: Wenn der Lüfter effektiv eingeschaltet sein soll, aber nach Karenzzeit keine Tachopulse anliegen, `fan_fault` setzen.
 - Für Relais und Bodenfeuchtesensor keine starke Hardware-Selbstdiagnose behaupten, da kein echter Rückkanal vorhanden ist.
 
