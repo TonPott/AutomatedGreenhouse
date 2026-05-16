@@ -17,12 +17,12 @@ constexpr uint8_t RDAC_W2 = 1;
 constexpr uint32_t LAMP_SETTLE_MS = 3000UL;
 
 // Project brightness mapping reference points
-constexpr uint8_t PCT_0_W1   = 0;
-constexpr uint8_t PCT_0_W2   = 255;
+constexpr uint8_t PCT_0_W1   = 255;
+constexpr uint8_t PCT_0_W2   = 0;
 constexpr uint8_t PCT_50_W1  = 0;
 constexpr uint8_t PCT_50_W2  = 0;
-constexpr uint8_t PCT_100_W1 = 255;
-constexpr uint8_t PCT_100_W2 = 0;
+constexpr uint8_t PCT_100_W1 = 0;
+constexpr uint8_t PCT_100_W2 = 255;
 
 AD5263 pot(AD5263_ADDR, &Wire);
 
@@ -136,15 +136,15 @@ bool applyProjectPercent(uint8_t percent)
 
   if (percent <= 50)
   {
-    // 0..50% : W2 moves 255 -> 0, W1 stays 0
-    w1 = 0;
-    w2 = map(percent, 0, 50, 255, 0);
+    // 0..50%: W1 moves 255 -> 0, W2 stays 0.
+    w1 = map(percent, 0, 50, 255, 0);
+    w2 = 0;
   }
   else
   {
-    // 50..100% : W2 stays 0, W1 moves 0 -> 255
-    w2 = 0;
-    w1 = map(percent, 50, 100, 0, 255);
+    // 50..100%: W2 moves 0 -> 255, W1 stays 0.
+    w2 = map(percent, 50, 100, 0, 255);
+    w1 = 0;
   }
 
   Serial.println();
@@ -180,13 +180,13 @@ void runQuickProjectSequence()
   printReadback();
   waitForSettle(F("reset()"));
 
-  Serial.println(F("2) Project 0%  => W2=255, W1=0"));
+  Serial.println(F("2) Project 0%  => W2=0, W1=255"));
   writePair(PCT_0_W1, PCT_0_W2, true);
 
   Serial.println(F("3) Project 50% => W2=0, W1=0"));
   writePair(PCT_50_W1, PCT_50_W2, true);
 
-  Serial.println(F("4) Project 100% => W2=0, W1=255"));
+  Serial.println(F("4) Project 100% => W2=255, W1=0"));
   writePair(PCT_100_W1, PCT_100_W2, true);
 
   Serial.println(F("5) SHDN LOW test"));

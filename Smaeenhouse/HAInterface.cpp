@@ -92,8 +92,8 @@ HAInterface::HAInterface(FanController& fanController,
       mqtt_(networkClient_, device_, 40),
       temperatureSensor_("temperature"),
       humiditySensor_("humidity"),
-      soilPercentSensor_("soil_moisture"),
-      soilRawSensor_("soil_raw"),
+      soilPercentSensor_("soil_moisture_percent"),
+      soilRawSensor_("soil_moisture_raw"),
       fanRpmSensor_("fan_rpm"),
       lightFaultReasonSensor_("light_fault_reason"),
       lightFaultBinarySensor_("light_fault"),
@@ -418,8 +418,13 @@ void HAInterface::publishSensorValues(bool force) {
   }
 
   if (force || (nowMs - lastSoilPublishMs_ >= SOIL_PUBLISH_INTERVAL_MS)) {
-    soilPercentSensor_.setValue(static_cast<int32_t>(moistureSensor_.getLastPercent()));
     soilRawSensor_.setValue(static_cast<int32_t>(moistureSensor_.getLastRaw()));
+    if (moistureSensor_.isLastPercentValid()) {
+      soilPercentSensor_.setValue(static_cast<int32_t>(moistureSensor_.getLastPercent()));
+    } else {
+      // ArduinoHA's numeric sensor API used here has no explicit unavailable state;
+      // keep publishing raw readings and avoid refreshing a misleading percent value.
+    }
     lastSoilPublishMs_ = nowMs;
   }
 

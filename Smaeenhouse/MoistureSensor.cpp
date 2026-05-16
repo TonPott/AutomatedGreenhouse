@@ -1,5 +1,7 @@
 #include "MoistureSensor.h"
 
+#include <math.h>
+
 #include "Config.h"
 
 MoistureSensor::MoistureSensor(uint8_t analogPin) : analogPin_(analogPin) {
@@ -14,6 +16,7 @@ void MoistureSensor::begin(int air, int water, int depthMm) {
   Serial.print(lastRaw_);
   Serial.print(F(", percent="));
   Serial.print(lastPercent_);
+  Serial.print(lastPercentValid_ ? F(" valid") : F(" invalid"));
   Serial.print(F(", air="));
   Serial.print(soilAir_);
   Serial.print(F(", water="));
@@ -32,12 +35,12 @@ void MoistureSensor::update(uint32_t nowMs) {
 }
 
 int MoistureSensor::readRawNow() const {
-  return analogRead(analogPin_);
+  return constrain(analogRead(analogPin_), SOIL_ADC_MIN, SOIL_ADC_MAX);
 }
 
 void MoistureSensor::sampleNow() {
   lastRaw_ = readRawNow();
-  lastPercent_ = computePercent(lastRaw_);
+  lastPercentValid_ = computePercent(lastRaw_, lastPercent_);
 }
 
 int MoistureSensor::getLastRaw() const {
@@ -46,6 +49,10 @@ int MoistureSensor::getLastRaw() const {
 
 uint8_t MoistureSensor::getLastPercent() const {
   return lastPercent_;
+}
+
+bool MoistureSensor::isLastPercentValid() const {
+  return lastPercentValid_;
 }
 
 int MoistureSensor::getSoilAir() const {
@@ -66,11 +73,26 @@ void MoistureSensor::setCalibration(int air, int water, int depthMm) {
   soilDepthMm_ = constrain(depthMm, SOIL_DEPTH_MIN_MM, SOIL_DEPTH_MAX_MM);
 }
 
-uint8_t MoistureSensor::computePercent(int raw) const {
-  if (soilAir_ == soilWater_) {
-    return 0;
+bool MoistureSensor::computePercent(int raw, uint8_t& percent) const {
+  percent = 0;
+
+  if (soilDepthMm_ < SOIL_MIN_VALID_DEPTH_MM || soilDepthMm_ <= 0 ||
+      soilAir_ == soilWater_) {
+    return false;
   }
 
-  const long mapped = map(raw, soilAir_, soilWater_, 0, 100);
-  return static_cast<uint8_t>(constrain(mapped, 0, 100));
+  const float depthFactor =
+      static_cast<float>(soilDepthMm_) / static_cast<float>(SOIL_REFERENCE_DEPTH_MM);
+  const float denominator = static_cast<float>(soilAir_ - soilWater_) * depthFactor;
+  if (depthFactor <= 0.0f || fabs(denominator) < 0.0001f) {
+    return false;
+  }
+
+  const int constrainedRaw = constrain(raw, SOIL_ADC_MIN, SOIL_ADC_MAX);
+  float calculated =
+      (static_cast<float>(soilAir_ - constrainedRaw) / denominator) * 100.0f;
+  calculated = constrain(calculated, 0.0f, 100.0f);
+
+  percent = static_cast<uint8_t>(calculated + 0.5f);
+  return true;
 }

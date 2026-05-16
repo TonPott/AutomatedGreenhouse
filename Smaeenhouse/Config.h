@@ -37,10 +37,12 @@ constexpr uint8_t LIGHT_DIM_W2_RDAC_MAX_EFFECTIVE = 255;
 constexpr uint8_t LIGHT_DIM_W1_RDAC_MIN_EFFECTIVE = 0;
 constexpr uint8_t LIGHT_DIM_W1_RDAC_MAX_EFFECTIVE = 255;
 
-constexpr uint8_t LIGHT_DIM_W2_AT_0_PERCENT = 255;
+constexpr uint8_t LIGHT_DIM_W2_AT_0_PERCENT = 0;
+constexpr uint8_t LIGHT_DIM_W1_AT_0_PERCENT = 255;
 constexpr uint8_t LIGHT_DIM_W2_AT_50_PERCENT = 0;
 constexpr uint8_t LIGHT_DIM_W1_AT_50_PERCENT = 0;
-constexpr uint8_t LIGHT_DIM_W1_AT_100_PERCENT = 255;
+constexpr uint8_t LIGHT_DIM_W2_AT_100_PERCENT = 255;
+constexpr uint8_t LIGHT_DIM_W1_AT_100_PERCENT = 0;
 
 constexpr uint8_t LIGHT_DIM_COMMAND_MAX_ATTEMPTS = 2;
 constexpr uint16_t LIGHT_DIM_WRITE_SETTLE_MS = 2;
@@ -79,6 +81,10 @@ constexpr int16_t SOIL_CAL_MIN = 0;
 constexpr int16_t SOIL_CAL_MAX = 1000;
 constexpr int16_t SOIL_DEPTH_MIN_MM = 0;
 constexpr int16_t SOIL_DEPTH_MAX_MM = 120;
+constexpr int16_t SOIL_REFERENCE_DEPTH_MM = 120;
+constexpr int16_t SOIL_MIN_VALID_DEPTH_MM = 20;
+constexpr int16_t SOIL_ADC_MIN = 0;
+constexpr int16_t SOIL_ADC_MAX = 4095;
 
 constexpr int16_t DEFAULT_SOIL_AIR = 1000;
 constexpr int16_t DEFAULT_SOIL_WATER = 500;

@@ -281,31 +281,35 @@ uint8_t LightController::clampPercent(uint8_t value) const {
 LightController::RdacTarget LightController::brightnessToRdac(uint8_t percent) const {
   const uint8_t clampedPercent = clampPercent(percent);
   if (clampedPercent <= LIGHT_DIM_MAPPING_SPLIT_PERCENT) {
-    const long mappedW2 =
+    const long mappedW1 =
         map(clampedPercent,
             0,
             LIGHT_DIM_MAPPING_SPLIT_PERCENT,
-            LIGHT_DIM_W2_AT_0_PERCENT,
-            LIGHT_DIM_W2_AT_50_PERCENT);
+            LIGHT_DIM_W1_AT_0_PERCENT,
+            LIGHT_DIM_W1_AT_50_PERCENT);
 
     RdacTarget target{};
-    target.w2 = static_cast<uint8_t>(constrain(mappedW2,
+    target.w2 = static_cast<uint8_t>(constrain(LIGHT_DIM_W2_AT_0_PERCENT,
                                                LIGHT_DIM_W2_RDAC_MIN_EFFECTIVE,
                                                LIGHT_DIM_W2_RDAC_MAX_EFFECTIVE));
-    target.w1 = LIGHT_DIM_W1_AT_50_PERCENT;
+    target.w1 = static_cast<uint8_t>(constrain(mappedW1,
+                                               LIGHT_DIM_W1_RDAC_MIN_EFFECTIVE,
+                                               LIGHT_DIM_W1_RDAC_MAX_EFFECTIVE));
     return target;
   }
 
-  const long mappedW1 =
+  const long mappedW2 =
       map(clampedPercent,
           LIGHT_DIM_MAPPING_SPLIT_PERCENT,
           100,
-          LIGHT_DIM_W1_AT_50_PERCENT,
-          LIGHT_DIM_W1_AT_100_PERCENT);
+          LIGHT_DIM_W2_AT_50_PERCENT,
+          LIGHT_DIM_W2_AT_100_PERCENT);
 
   RdacTarget target{};
-  target.w2 = LIGHT_DIM_W2_AT_50_PERCENT;
-  target.w1 = static_cast<uint8_t>(constrain(mappedW1,
+  target.w2 = static_cast<uint8_t>(constrain(mappedW2,
+                                             LIGHT_DIM_W2_RDAC_MIN_EFFECTIVE,
+                                             LIGHT_DIM_W2_RDAC_MAX_EFFECTIVE));
+  target.w1 = static_cast<uint8_t>(constrain(LIGHT_DIM_W1_AT_100_PERCENT,
                                              LIGHT_DIM_W1_RDAC_MIN_EFFECTIVE,
                                              LIGHT_DIM_W1_RDAC_MAX_EFFECTIVE));
   return target;
