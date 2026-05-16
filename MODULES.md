@@ -1,15 +1,15 @@
-## Technische Spezifikation der Module v4
+## Technical Module Specification v4
 
-## 1. Gesamtarchitektur
+## 1. Overall Architecture
 
-Das Projekt wird als Arduino-Sketchordner mit `.ino`, `.h` und `.cpp` aufgebaut.
-Der Hauptsketch liegt unter `Smaeenhouse/Smaeenhouse.ino`; die zugehörigen Modul- und Konfigurationsdateien liegen im Ordner `Smaeenhouse/`.
+The project is structured as an Arduino sketch folder with `.ino`, `.h`, and `.cpp` files.
+The main sketch is located at `Smaeenhouse/Smaeenhouse.ino`; the related module and configuration files are located in the `Smaeenhouse/` folder.
 
-Empfohlene Dateien:
+Recommended files:
 
 - `Smaeenhouse/Smaeenhouse.ino`
 - `Smaeenhouse/Config.h`
-- `Smaeenhouse/Credentials.h` (lokal, nicht ins Repo committen)
+- `Smaeenhouse/Credentials.h` (local, do not commit to the repository)
 - `Smaeenhouse/PersistentConfig.h/.cpp`
 - `Smaeenhouse/RtcEepromStorage.h/.cpp`
 - `Smaeenhouse/SHTa.h/.cpp`
@@ -20,30 +20,30 @@ Empfohlene Dateien:
 - `Smaeenhouse/NetworkManager.h/.cpp`
 - `Smaeenhouse/HAInterface.h/.cpp`
 
-### Grundprinzip
-Jedes Modul soll möglichst diese Struktur haben:
+### Basic Principle
+Each module should preferably have this structure:
 
 - `begin()`
 - `update(uint32_t nowMs)`
 
-`loop()` ruft dann nur die `update()`-Methoden auf.
+`loop()` then only calls the `update()` methods.
 
 ## 2. Config.h
 
-### Aufgabe
-Zentrale Compile-Time-Konstanten.
+### Purpose
+Central compile-time constants.
 
-### Inhalt
-- Pinbelegung
-- Default-Werte
-- Messintervalle
-- Dimmer-Widerstandsgrenzen / Helligkeits-Mapping
-- Standard-Thresholds
-- Standard-Zeitplan
-- Standard-Soil-Kalibrierung
-- Hardware-Hinweise für Signalaufbereitung
+### Contents
+- pin assignment
+- default values
+- measurement intervals
+- dimmer resistance limits / brightness mapping
+- default thresholds
+- default schedule
+- default soil calibration
+- hardware notes for signal conditioning
 
-### Typische Konstanten
+### Typical Constants
 - `PIN_SHT_ALERT`
 - `PIN_RTC_ALARM`
 - `PIN_FAN_SWITCH`
@@ -56,13 +56,13 @@ Zentrale Compile-Time-Konstanten.
 - `AD5263_AD0_TO_GND = true`
 - `AD5263_AD1_TO_GND = true`
 
-- Kanalspezifische effektive RDAC-Grenzen für die verwendeten Dimmerkanäle (`W2` und `W1`), z. B.:
+- channel-specific effective RDAC limits for the used dimmer channels (`W2` and `W1`), for example:
   - `LIGHT_DIM_W2_RDAC_MIN_EFFECTIVE`
   - `LIGHT_DIM_W2_RDAC_MAX_EFFECTIVE`
   - `LIGHT_DIM_W1_RDAC_MIN_EFFECTIVE`
   - `LIGHT_DIM_W1_RDAC_MAX_EFFECTIVE`
-- `LIGHT_DIM_MAPPING_SPLIT_PERCENT = 50` (Split zwischen W2-Phase und W1-Phase)
-- Hinweis: Die Bezeichner sind dokumentativ beispielhaft; verbindlich ist die getrennte Begrenzung pro Kanal und die Richtung `minimaler Widerstand = 0 %`, `maximaler Widerstand = 100 %`.
+- `LIGHT_DIM_MAPPING_SPLIT_PERCENT = 50` (split between W2 phase and W1 phase)
+- Note: The identifiers are documented as examples; mandatory are the separate per-channel limits and the direction `minimal resistance = 0 %`, `maximal resistance = 100 %`.
 
 - `DEFAULT_TEMP_HIGH_SET`
 - `DEFAULT_TEMP_HIGH_CLEAR`
@@ -81,6 +81,12 @@ Zentrale Compile-Time-Konstanten.
 - `SOIL_ADC_MIN = 0`
 - `SOIL_ADC_MAX = 4095`
 
+These soil constants complement the existing soil default values and do not replace them:
+
+- `SOIL_REFERENCE_DEPTH_MM` is the reference depth at which water corresponds to `100 %`.
+- `SOIL_MIN_VALID_DEPTH_MM` is the lower limit below which the calculated percent value becomes invalid/unavailable.
+- `SOIL_ADC_MIN` and `SOIL_ADC_MAX` are internal defensive limits for ADC raw values.
+
 - `SOIL_PUBLISH_INTERVAL_MS = 10000`
 - `TEMP_HUM_PUBLISH_INTERVAL_MS = 60000`
 - `FAN_RPM_PUBLISH_INTERVAL_MS = 30000`
@@ -88,48 +94,48 @@ Zentrale Compile-Time-Konstanten.
 - `MQTT_FALLBACK_TIMEOUT_MS = 600000`
 
 ## 3. Credentials.h
-### Aufgabe
-Zentrale Ablage aller Zugangsdaten und installationsspezifischen IDs.
+### Purpose
+Central storage for all credentials and installation-specific IDs.
 
-### Inhalt
-- WLAN-SSID
-- WLAN-Passwort
-- MQTT-Host
-- MQTT-Port
-- MQTT-User
-- MQTT-Passwort
+### Contents
+- WiFi SSID
+- WiFi password
+- MQTT host
+- MQTT port
+- MQTT user
+- MQTT password
 - Device Name
 - Device Unique ID
 - MQTT Prefix
-- NTP-Server
-- Zeitzoneninformationen
+- NTP server
+- timezone information
 
-## 4. PersistentConfig / externe EEPROM-Persistenz
+## 4. PersistentConfig / External EEPROM Persistence
 
-### Aufgabe
-Persistente Speicherung aller veränderbaren Laufzeitparameter im **AT24C32-EEPROM**
-des WINGONEER Tiny DS3231 AT24C32 I2C Moduls über die Bibliothek **JC_EEPROM**.
+### Purpose
+Persistent storage of all mutable runtime parameters in the **AT24C32 EEPROM**
+of the WINGONEER Tiny DS3231 AT24C32 I2C module through the **JC_EEPROM** library.
 
-### Datenstruktur
-Eine zentrale Struct, z. B. `PersistentConfigData`, mit:
+### Data Structure
+A central struct, for example `PersistentConfigData`, with:
 
-- Temp-/Hum-Thresholds
-- Arduino-Lichtzeiten
-- Arduino-Dimmdauer
+- temp/hum thresholds
+- Arduino light times
+- Arduino dim duration
 - `fanAutoMode`
 - `lightAutoMode`
-- Fallback-Lichtverhalten
+- fallback light behavior
 - Soil Air/Water/Depth
-- Resume-State für Lichtwiederaufnahme (separate Teilstruktur oder klar abgegrenzter Block) mit:
-  - letzter effektiver Helligkeit
+- resume state for light recovery (separate substructure or clearly separated block) with:
+  - last effective brightness
   - `hardPowerOffActive`
-  - Kennzeichen, ob ein HA-Dimmjob aktiv war
-  - Job-Starthelligkeit
-  - Job-Zielhelligkeit
-  - Job-Dauer
-  - Job-Startzeit auf RTC-/Epoch-Basis
-- Versionsnummer
-- CRC/Validierung
+  - flag whether a HA dimming job was active
+  - job start brightness
+  - job target brightness
+  - job duration
+  - job start time on RTC/Epoch basis
+- version number
+- CRC/validation
 
 ### API
 - `bool begin(TwoWire& wire = Wire);`
@@ -139,29 +145,29 @@ Eine zentrale Struct, z. B. `PersistentConfigData`, mit:
 - `bool saveIfChanged(const PersistentConfigData& cfg);`
 - `void applyDefaults(PersistentConfigData& cfg);`
 
-### Anforderungen
-- keine unnötigen EEPROM-Schreibvorgänge
-- Änderungen nur bei tatsächlicher Wertänderung speichern
-- robuste Initialisierung bei leerem/ungültigem Speicher
-- JC_EEPROM in eigene Projektlogik kapseln, nicht direkt quer durch das Projekt verwenden
-- EEPROM-Zugriffe nie in ISR
-- Die EEPROM-I²C-Adresse ist im Projekt bekannt und fest dokumentiert und lautet '0x57'.
-- Die Implementierung soll diese feste Adresse direkt verwenden.
-- Es soll keine automatische Adresssuche und kein I²C-Scan in der normalen Firmware-Initialisierung stattfinden.
-- Die Adresse wird als Konstante zentral definiert, z. B. in `Config.h`.
+### Requirements
+- no unnecessary EEPROM writes
+- save changes only when the value actually changed
+- robust initialization when storage is empty/invalid
+- encapsulate JC_EEPROM in project-specific logic, do not use it directly across the project
+- never access EEPROM from an ISR
+- The EEPROM I²C address is known and fixed for the project and is documented as '0x57'.
+- The implementation should use this fixed address directly.
+- There should be no automatic address search and no I²C scan during normal firmware initialization.
+- The address is defined centrally as a constant, for example in `Config.h`.
 
-### Technische Konsequenz:
-- Der EEPROM-Wrapper bzw. die Persistenzklasse initialisiert `JC_EEPROM` direkt mit der bekannten Geräteadresse.
-- Fehlerbehandlung bezieht sich auf Kommunikationsfehler oder ungültige Daten, nicht auf Adresssuche.
-- Keine doppelte Neuanlage bereits vorhandener Konfigurationswerte; Persistenz gezielt um Resume-State ergänzen.
-- Für Neustart-Wiederaufnahme reicht `millis()` nicht; Resume-State benötigt RTC-/Epoch-Zeitbasis.
+### Technical Consequence
+- The EEPROM wrapper or persistence class initializes `JC_EEPROM` directly with the known device address.
+- Error handling refers to communication errors or invalid data, not to address search.
+- Do not create existing configuration values a second time; extend persistence specifically with resume state.
+- `millis()` is not sufficient for restart resumption; resume state requires an RTC/Epoch time base.
 
 ## 5. SHTa
 
-### Aufgabe
-Kapselung des SHT3x inklusive Threshold-Programmierung und Alert-Auswertung.
+### Purpose
+Encapsulation of the SHT3x including threshold programming and alert evaluation.
 
-### Übernommene Funktionen
+### Reused Functions
 - `begin()`
 - `startPeriodicMeasurement(...)`
 - `blockingReadMeasurement(...)`
@@ -174,14 +180,14 @@ Kapselung des SHT3x inklusive Threshold-Programmierung und Alert-Auswertung.
 - `readLimit(...)`
 - `limitPrinter()`
 
-### Zusätzliche fachliche Verantwortung
-- Schreiben der konfigurierten Thresholds in den Sensor
-- Auswertung von `alertTriggers[]`
-- Erkennen von Sensor-Reset über `alertTriggers[4]`
-- Re-Apply der Thresholds nach Reset
+### Additional Functional Responsibility
+- writing configured thresholds to the sensor
+- evaluating `alertTriggers[]`
+- detecting sensor reset through `alertTriggers[4]`
+- re-applying thresholds after reset
 
-### API-Erweiterungen
-Empfohlen:
+### API Extensions
+Recommended:
 
 - `void applyThresholdConfig(const PersistentConfigData& cfg);`
 - `bool readMeasurement(float& temp, float& hum);`
@@ -190,25 +196,25 @@ Empfohlen:
 - `bool hasSensorReset() const;`
 - `void clearDecodedFlags();`
 
-### ISR-Regel
-Die eigentliche I²C-Kommunikation soll **nicht in der ISR** stattfinden.
+### ISR Rule
+The actual I²C communication should **not happen in the ISR**.
 
-Stattdessen:
-- ISR setzt nur ein `volatile bool shtAlertPending`
-- die Hauptlogik ruft danach `decodeStatusRegister()` auf
+Instead:
+- ISR only sets a `volatile bool shtAlertPending`
+- the main logic then calls `decodeStatusRegister()`
 
 ## 6. FanController
 
-### Aufgabe
-Schalten des Lüfters und Messen der RPM.
+### Purpose
+Switching the fan and measuring RPM.
 
-### Verantwortlichkeiten
-- Fan-Schaltpin setzen
-- RPM per Tachopulse zählen
-- Auto-/Manuell-Logik umsetzen
-- keine eigenen Threshold-Berechnungen
+### Responsibilities
+- set fan switch pin
+- count tach pulses for RPM
+- implement auto/manual logic
+- no own threshold calculations
 
-### Zustände
+### States
 - `fanAutoMode`
 - `fanManualState`
 - `fanEffectiveState`
@@ -225,97 +231,97 @@ Schalten des Lüfters und Messen der RPM.
 - `bool isOn() const;`
 - `uint16_t getRPM() const;`
 
-### Steuerlogik
-Effektiver Fan-Zustand:
+### Control Logic
+Effective fan state:
 
-- wenn `fanAutoMode == true`: Zustand folgt `autoDemand`
-- wenn `fanAutoMode == false`: Zustand folgt `manualState`
+- if `fanAutoMode == true`: state follows `autoDemand`
+- if `fanAutoMode == false`: state follows `manualState`
 
-`autoDemand` wird **außerhalb** des Moduls aus der SHT-Alert-Logik gesetzt.
+`autoDemand` is set **outside** the module from the SHT alert logic.
 
-### RPM-Logik
-- ISR für Tach zählt Pulse
-- alle 30 s RPM berechnen
-- nur wenn Lüfter effektiv laufen soll
-- beim Stillstand ggf. RPM auf 0 setzen
-- wenn Lüfter effektiv an sein soll, aber nach Karenzzeit keine Tachopulse eintreffen: `fanFault` setzen
+### RPM Logic
+- tach ISR counts pulses
+- calculate RPM every 30 s
+- only when the fan should effectively be running
+- set RPM to 0 on standstill if appropriate
+- if the fan should effectively be on but no tach pulses arrive after the grace period: set `fanFault`
 
-### Hardware-Hinweis Lüfter-Tacho
-Die textliche Doku und der Schaltplan sollen die verwendete 2N3904-Stufe dokumentieren:
+### Hardware Note: Fan Tach
+The text documentation and the schematic should document the used 2N3904 stage:
 
-- Lüfter-Tacho über 10 kΩ auf 9 V pull-up
-- Tacho über 47 kΩ an Basis eines 2N3904
-- 100 kΩ von Basis nach GND
-- Emitter an GND
-- Collector an `PIN_FAN_TACH`
-- 10 kΩ Pull-up vom Collector nach 3,3 V
+- fan tach through 10 kΩ pull-up to 9 V
+- tach through 47 kΩ to the base of a 2N3904
+- 100 kΩ from base to GND
+- emitter to GND
+- collector to `PIN_FAN_TACH`
+- 10 kΩ pull-up from collector to 3.3 V
 
-Das Signal ist invertiert; der Code wählt entsprechend die Interrupt-Flanke.
+The signal is inverted; the code selects the interrupt edge accordingly.
 
 ## 7. LightController
 
-### Aufgabe
-Steuerung von AD5263-Dimmer, SHDN-Pin, Relais und Dimmaufträgen.
+### Purpose
+Control of AD5263 dimmer, SHDN pin, relay, and dimming requests.
 
-### Zentrale Verantwortung
-- klare Trennung zwischen Arduino-Auto und HA-Steuerung
-- Verwaltung des aktuellen Helligkeitszustands (`0..100 %`)
-- Ausführung von Dimmjobs
-- AD5263-Ansteuerung per I²C außerhalb von ISRs
-- zwei AD5263-Kanäle gemäß festem Signalpfad nutzen
-- SHDN-Steuerung mit sicherem Boot-Verhalten
-- hartes Relais-Aus separat
+### Central Responsibility
+- clear separation between Arduino Auto and HA control
+- management of the current brightness state (`0..100 %`)
+- execution of dimming jobs
+- AD5263 control via I²C outside ISRs
+- use two AD5263 channels according to the fixed signal path
+- SHDN control with safe boot behavior
+- separate hard relay-off
 
-### Verbindliche Hardwareannahmen
-- AD5263BRUZ50 im I²C-Modus (`DIS = 1`)
-- I²C-Adresse fest `0x2C` (`AD0 = GND`, `AD1 = GND`)
-- Pull-ups auf SDA/SCL nach `3,3 V`
-- SHDN liegt auf `PIN_LIGHT_DIM_SHDN` mit externem `10 kΩ` Pull-down
-- kein interner Pull-up auf SHDN
-- analoge Kanalverschaltung: `Dim+ -> W2 -> B2 -> A1 -> W1 -> Dim-`
-- Dimmereingang der Lampe: minimaler effektiver Widerstand / näherungsweise `0 Ω` = `0 %`, maximaler effektiver Widerstand / näherungsweise `100 kΩ` = `100 %`
+### Mandatory Hardware Assumptions
+- AD5263BRUZ50 in I²C mode (`DIS = 1`)
+- fixed I²C address `0x2C` (`AD0 = GND`, `AD1 = GND`)
+- pull-ups on SDA/SCL to `3.3 V`
+- SHDN on `PIN_LIGHT_DIM_SHDN` with external `10 kΩ` pull-down
+- no internal pull-up on SHDN
+- analog channel wiring: `Dim+ -> W2 -> B2 -> A1 -> W1 -> Dim-`
+- lamp dimmer input: minimal effective resistance / approximately `0 Ω` = `0 %`, maximal effective resistance / approximately `100 kΩ` = `100 %`
 
-### Helligkeitsmapping (verbindlich)
+### Brightness Mapping (Mandatory)
 
-Referenzpunkte:
+Reference points:
 
 - `0 %  => W2=0,   W1=255`
 - `50 % => W2=0,   W1=0`
 - `100 % => W2=255, W1=0`
 
-Zwischenbereiche:
+Intermediate ranges:
 
-- `0..50 %`: zuerst Kanal 1 / `W1` so verändern, dass der Gesamtwiderstand vom Minimalwert zum Mittelpunkt steigt
-- `50..100 %`: danach Kanal 2 / `W2` so verändern, dass der Gesamtwiderstand vom Mittelpunkt zum Maximalwert steigt
-- genutzte Rheostat-Strecken: `A1-W1` auf Kanal 1 und `W2-B2` auf Kanal 2
+- `0..50 %`: first change channel 1 / `W1` so the total resistance rises from the minimum value to the midpoint
+- `50..100 %`: then change channel 2 / `W2` so the total resistance rises from the midpoint to the maximum value
+- used rheostat stretches: `A1-W1` on channel 1 and `W2-B2` on channel 2
 
-Dimmergrenzen:
+Dimmer limits:
 
-- effektive untere/obere Grenzen werden über Firmware-Konstanten begrenzt
-- `0 Ω` ist als minimaler effektiver Widerstand bzw. näherungsweise `0 Ω` zu verstehen, da der AD5263 im Rheostat-Betrieb einen Restwiderstand hat
-- diese Grenzen sind nicht über HA konfigurierbar
+- effective lower/upper limits are constrained through firmware constants
+- `0 Ω` is to be understood as minimal effective resistance or approximately `0 Ω`, because the AD5263 has residual resistance in rheostat mode
+- these limits are not configurable via HA
 
-### Boot- und Ausschaltsequenz (verbindlich)
+### Boot And Shutdown Sequence (Mandatory)
 
-Beim Start:
+On startup:
 
-1. AD5263 in `SHDN` halten
-2. Konfiguration laden
-3. Sollzustand aus persistierten Daten + Resume-State rekonstruieren
-4. RDAC-Widerstandswerte setzen
-5. `SHDN` freigeben
-6. erst danach Relais schließen
+1. Keep AD5263 in `SHDN`
+2. Load configuration
+3. Reconstruct target state from persisted data + resume state
+4. Set RDAC resistance values
+5. Release `SHDN`
+6. Only then close relay
 
-Beim Ausschalten:
+On shutdown:
 
-1. Relais öffnen
-2. AD5263 in `SHDN`
+1. Open relay
+2. Put AD5263 into `SHDN`
 
-Hinweis:
+Note:
 
-- Der AD5263 startet auf Midscale; ohne diese Reihenfolge droht ein falscher Helligkeitsstart.
+- The AD5263 starts at midscale; without this sequence, an incorrect brightness start is possible.
 
-### Wichtige interne Zustände
+### Important Internal States
 - `lightAutoMode`
 - `currentBrightnessPercent`
 - `targetBrightnessPercent`
@@ -323,30 +329,30 @@ Hinweis:
 - `controlSource`:
   - `ARDUINO_AUTO`
   - `HA_CONTROL`
-- aktueller Dimmjob:
-  - aktiv/inaktiv
-  - Starthelligkeit
-  - Zielhelligkeit
-  - Startzeit
-  - Dauer
-  - Quelle
+- current dimming job:
+  - active/inactive
+  - start brightness
+  - target brightness
+  - start time
+  - duration
+  - source
 - `lightFault`
 - `lightFaultReason`
 
-### Resume-State (persistiert)
-Mindestens:
+### Resume State (Persisted)
+At minimum:
 
-- letzte effektive Helligkeit
+- last effective brightness
 - `hardPowerOffActive`
-- Flag, ob HA-Dimmjob aktiv war
-- Job-Starthelligkeit
-- Job-Zielhelligkeit
-- Job-Dauer
-- Job-Startzeit (RTC-/Epoch-basiert)
+- flag whether a HA dimming job was active
+- job start brightness
+- job target brightness
+- job duration
+- job start time (RTC/Epoch-based)
 
-Wichtig:
+Important:
 
-- Wiederaufnahme nach Neustart darf nicht nur auf `millis()` basieren.
+- Resumption after restart must not be based only on `millis()`.
 
 ### API
 - `void begin();`
@@ -367,94 +373,94 @@ Wichtig:
 - `bool hasLightFault() const;`
 - `const char* getLightFaultReason() const;`
 
-### Detailregeln
+### Detailed Rules
 
-#### Bei Auto-Mode ON
-- `startHADimJob()` ignorieren
-- `applyManualOnOff()` ignorieren oder no-op
-- `applyManualBrightness()` darf optional den aktuellen Zielwert innerhalb des Zeitfensters überschreiben
+#### With Auto Mode ON
+- ignore `startHADimJob()`
+- ignore `applyManualOnOff()` or treat it as no-op
+- `applyManualBrightness()` may optionally override the current target value within the time window
 
-#### Bei Auto-Mode OFF
-- Arduino-Schedule-Events ignorieren
-- HA-Schedule-Dimmjobs und manuelle Bedienung annehmen
+#### With Auto Mode OFF
+- ignore Arduino schedule events
+- accept HA schedule dimming jobs and manual operation
 
-#### Dimmjob-Verhalten
-- ein neuer Job ersetzt den alten Job derselben aktiven Steuerwelt
-- Helligkeit wird linear über die Laufzeit interpoliert
-- bei `durationMs == 0` sofort setzen
-- bei Ziel `0 %` darf optional Power-Off gesetzt werden, außer es handelt sich explizit um den separaten Hard-Power-Off-Schalter
+#### Dimming Job Behavior
+- a new job replaces the old job from the same active control world
+- brightness is interpolated linearly over the runtime
+- if `durationMs == 0`, set immediately
+- at target `0 %`, power-off may optionally be set unless this is explicitly the separate hard-power-off switch
 
 #### Hard Power Off
-- schaltet nur das Relais
-- verändert gespeicherten Brightness-Wert nicht
+- only switches the relay
+- does not change the stored brightness value
 
-#### Feste HA-Dimmjob-Schnittstelle
-Der HA-Dimmjob wird verbindlich über folgende Entities ausgelöst:
+#### Fixed HA Dimming Job Interface
+The HA dimming job is triggered mandatorily through these entities:
 
 - `number.ha_dim_target_percent`
 - `number.ha_dim_duration_minutes`
 - `button.start_ha_dim`
 
-### Fehlerstrategie LightController
+### LightController Fault Strategy
 
-Verbindliche Readback-/Plausibilitätsstrategie (gestuft und rate-limited):
+Mandatory readback/plausibility strategy (staged and rate-limited):
 
-1. Bootphase vor `SHDN`-Freigabe und vor Relais-EIN:
-   - AD5263 ansprechen
-   - definierte W1/W2-RDAC-Werte schreiben
-   - einmal Readback prüfen
-   - nur bei konsistentem Ergebnis fortfahren
+1. Boot phase before `SHDN` release and before relay ON:
+   - address AD5263
+   - write defined W1/W2 RDAC values
+   - check readback once
+   - continue only if the result is consistent
 
-2. Bei diskreten Kommandos:
-   - manueller Helligkeitssprung
-   - Start Arduino-Dimmjob
-   - Start HA-Dimmjob
-   - Restore aus Resume-State
-   jeweils:
-   - Write
-   - optional 1 kurzer Retry
-   - Readback prüfen
+2. For discrete commands:
+   - manual brightness jump
+   - start Arduino dimming job
+   - start HA dimming job
+   - restore from resume state
+   in each case:
+   - write
+   - optional 1 short retry
+   - check readback
 
-3. Bei langen Dimmrampen:
-   - kein Readback auf jedem Interpolationsschritt
-   - Readback-Verifikation am Rampenende
+3. For long dimming ramps:
+   - no readback on every interpolation step
+   - readback verification at the end of the ramp
 
-Fehlerreaktion (verbindlich):
+Fault response (mandatory):
 
-- AD5263 beim Boot nicht erreichbar:
-  - Relais bleibt offen
-  - Licht bleibt aus
+- AD5263 not reachable during boot:
+  - relay remains open
+  - light stays off
   - `lightFault = true`
   - `lightFaultReason = "ad5263_not_found"`
 
-- AD5263-Schreibfehler nach Retry:
-  - Relais öffnen
+- AD5263 write failure after retry:
+  - open relay
   - `lightFault = true`
   - `lightFaultReason = "ad5263_write_failed"`
 
-- AD5263-Readback-Mismatch nach Retry:
-  - Relais öffnen
+- AD5263 readback mismatch after retry:
+  - open relay
   - `lightFault = true`
   - `lightFaultReason = "ad5263_readback_mismatch"`
 
 ## 8. MoistureSensor
 
-### Aufgabe
-Lesen und Umrechnen des Bodenfeuchtesensors.
+### Purpose
+Reading and converting the soil moisture sensor.
 
-### Verantwortlichkeiten
-- Rohwert lesen
-- Prozentwert aus Air/Water/Depth kalibriert berechnen
-- periodische 10-s-Messung
-- ungültige Prozentwerte bei zu geringer Einstecktiefe erkennen
+### Responsibilities
+- read raw value
+- calculate calibrated percent value from Air/Water/Depth
+- periodic 10 s measurement
+- detect invalid percent values when insertion depth is too low
 
-### Zustände
+### States
 - `soilAir`
 - `soilWater`
 - `soilDepth`
 - `lastRaw`
 - `lastPercent`
-- `lastPercentValid` oder gleichwertiges Validitätsflag
+- `lastPercentValid` or equivalent validity flag
 - `lastReadMs`
 
 ### API
@@ -466,50 +472,50 @@ Lesen und Umrechnen des Bodenfeuchtesensors.
 - `bool isLastPercentValid() const;`
 - `void setCalibration(int air, int water, int depthMm);`
 
-### Regeln
-- `update()` liest alle 10 s
-- `readRawNow()` liest sofort, aktualisiert `lastRaw` und ermöglicht `button.read_soil_raw_value`
-- interne ADC-Rohwerte dürfen defensiv auf `SOIL_ADC_MIN..SOIL_ADC_MAX` (`0..4095`) begrenzt werden
-- `soilAir` und `soilWater` bleiben persistente HA-Konfigurationswerte im erwarteten Projektbereich `0..1000` mit Schrittweite `1`
-- `soilDepth` ist ein aktiver Korrekturparameter, nicht nur ein Informationswert
-- wenn `soilDepth < SOIL_MIN_VALID_DEPTH_MM`, ist der Prozentwert ungültig/unavailable; der Rohwert darf trotzdem publiziert werden
-- keine Kenntnis über HA-Kalibrierroutine nötig
-- keine Firmware-Buttons wie `capture_soil_air` oder `capture_soil_water`
+### Rules
+- `update()` reads every 10 s
+- `readRawNow()` reads immediately, updates `lastRaw`, and enables `button.read_soil_raw_value`
+- internal ADC raw values may defensively be constrained to `SOIL_ADC_MIN..SOIL_ADC_MAX` (`0..4095`)
+- `soilAir` and `soilWater` remain persistent HA configuration values in the expected project range `0..1000` with step `1`
+- `soilDepth` is an active correction parameter, not only an informational value
+- if `soilDepth < SOIL_MIN_VALID_DEPTH_MM`, the percent value is invalid/unavailable; the raw value may still be published
+- no knowledge of the HA calibration routine is required
+- no firmware buttons such as `capture_soil_air` or `capture_soil_water`
 
-### Tiefenkorrektur
-Definitionen:
+### Depth Correction
+Definitions:
 
 - `SOIL_REFERENCE_DEPTH_MM = 120`
 - `SOIL_MIN_VALID_DEPTH_MM = 20`
-- `soilAir`: Rohwert mit Sensor vollständig in Luft
-- `soilWater`: Rohwert mit Sensor in Wasser bei 120 mm Referenztiefe
-- `soilDepth`: tatsächliche Einstecktiefe in mm
+- `soilAir`: raw value with sensor completely in air
+- `soilWater`: raw value with sensor in water at 120 mm reference depth
+- `soilDepth`: actual insertion depth in mm
 
-Konzept:
+Concept:
 
 ```text
 depth_factor = soilDepth / SOIL_REFERENCE_DEPTH_MM
 percent = (soilAir - raw) / ((soilAir - soilWater) * depth_factor) * 100
 ```
 
-Die Luftreferenz entspricht `0 %`, die Wasserreferenz bei `120 mm` entspricht `100 %`. Gültige Prozentwerte werden auf `0..100 %` begrenzt. Die lineare Korrektur ist für dieses Projekt absichtlich ausreichend.
+The air reference corresponds to `0 %`, and the water reference at `120 mm` corresponds to `100 %`. Valid percent values are constrained to `0..100 %`. The linear correction is intentionally sufficient for this project.
 
 ## 9. ClockService
 
-### Aufgabe
-Verwaltung von RTC_DS3231, deren Alarmen und NTP-Synchronisation.
+### Purpose
+Management of RTC_DS3231, its alarms, and NTP synchronization.
 
-### Verantwortlichkeiten
-- RTC initialisieren
-- NTP-Zeit holen
-- RTC stellen
-- aktuelle Uhrzeit liefern
-- DS3231-SQW/INT für Alarmbetrieb konfigurieren
-- tägliche Alarmzeiten im RTC-Register spiegeln
-- Alarm-Flags auswerten und quittieren
-- täglichen Re-Sync auslösen
+### Responsibilities
+- initialize RTC
+- fetch NTP time
+- set RTC
+- provide current time
+- configure DS3231 SQW/INT for alarm operation
+- mirror daily alarm times into the RTC register
+- evaluate and acknowledge alarm flags
+- trigger daily re-sync
 
-### Zustände
+### States
 - `lastSuccessfulSyncMs`
 - `rtcAvailable`
 - `timeValid`
@@ -525,7 +531,7 @@ Verwaltung von RTC_DS3231, deren Alarmen und NTP-Synchronisation.
 - `bool configureScheduleAlarms(uint16_t onMinutes, uint16_t offMinutes);`
 - `ClockAlarmEvent serviceAlarmFlags();`
 
-### Empfohlener Alarm-Event-Typ
+### Recommended Alarm Event Type
 ```cpp
 enum class ClockAlarmEvent {
     None,
@@ -534,36 +540,36 @@ enum class ClockAlarmEvent {
 };
 ```
 
-### Implementationshinweise
-- Verwende RTClib-Funktionen der DS3231:
+### Implementation Notes
+- Use RTClib functions of the DS3231:
   - `writeSqwPinMode(...)`
   - `setAlarm1(...)`
   - `setAlarm2(...)`
   - `alarmFired(...)`
   - `clearAlarm(...)`
-- SQW/INT ist ein Open-Drain-Ausgang; Arduino-Seite mit `INPUT_PULLUP` betreiben.
-- Falls sich die Leitung im realen Aufbau als störanfällig erweist, kann zusätzlich ein externer 10-kΩ-Pull-up auf 3,3 V ergänzt werden.
+- SQW/INT is an open-drain output; operate the Arduino side with `INPUT_PULLUP`.
+- If the line proves noise-sensitive in the real build, an additional external 10 kΩ pull-up to 3.3 V may be added.
 
-### Regeln
-- Sync beim Boot
-- danach mindestens alle 24 h
-- manueller Sync-Befehl aus HA möglich
-- nach Zeit-Sync oder Konfigurationsänderung Alarmregister neu programmieren
-- I²C-Zugriffe nur außerhalb der ISR
+### Rules
+- sync during boot
+- afterwards at least every 24 h
+- manual sync command from HA possible
+- reprogram alarm registers after time sync or configuration change
+- I²C access only outside the ISR
 
 ## 10. NetworkManager
 
-### Aufgabe
-WiFi- und MQTT-Verbindung verwalten.
+### Purpose
+Manage WiFi and MQTT connection.
 
-### Verantwortlichkeiten
-- WLAN verbinden
-- MQTT verbinden
-- Reconnect-Strategie
-- Offline-Dauer messen
-- Fallback-Bedingung nach 10 min erkennen
+### Responsibilities
+- connect WiFi
+- connect MQTT
+- reconnect strategy
+- measure offline duration
+- detect fallback condition after 10 min
 
-### Zustände
+### States
 - `wifiConnected`
 - `mqttConnected`
 - `lastConnectionOkMs`
@@ -577,25 +583,25 @@ WiFi- und MQTT-Verbindung verwalten.
 - `bool isOnline() const;`
 - `bool isFallbackActive() const;`
 
-### Regeln
-- periodische Reconnect-Versuche
-- online = WLAN + MQTT ok
-- wenn >10 min offline: `fallbackActive = true`
-- bei erfolgreicher Verbindung wieder `fallbackActive = false`
+### Rules
+- periodic reconnect attempts
+- online = WiFi + MQTT ok
+- if offline >10 min: `fallbackActive = true`
+- on successful connection again: `fallbackActive = false`
 
 ## 11. HAInterface
 
-### Aufgabe
-Abbildung aller HA-Entities und Verarbeitung der HA-Befehle.
+### Purpose
+Mapping of all HA entities and processing of HA commands.
 
-### Verantwortlichkeiten
-- Discovery / Device-Setup
-- Publish von Zuständen und Messwerten
-- Entgegennehmen von Commands
-- Zustands-Re-Publish nach MQTT-Reconnect
+### Responsibilities
+- Discovery / device setup
+- publishing states and measurements
+- receiving commands
+- state re-publish after MQTT reconnect
 
-### Benötigte Referenzen
-Das Modul sollte auf andere Module zugreifen können, z. B. per Referenz im Konstruktor:
+### Required References
+The module should be able to access other modules, for example by reference in the constructor:
 
 - `FanController&`
 - `LightController&`
@@ -605,56 +611,56 @@ Das Modul sollte auf andere Module zugreifen können, z. B. per Referenz im Kons
 - `PersistentConfigManager&`
 - `NetworkManager&`
 
-### HA-Entities
+### HA Entities
 - `HADevice`
 - `HAMqtt`
-- `HASensorNumber` für Temperatur, Feuchte, `sensor.soil_moisture_percent`, `sensor.soil_moisture_raw`, RPM
-- `HABinarySensor` für `light_fault`, `fan_fault`, `sht_fault`, `rtc_fault`, `eeprom_fault`
-- `HASensor` (Text) für `light_fault_reason`
-- `HASwitch` für Fan, FanAuto, LightAuto, HardPowerOff, Fallback-Verhalten
-- `HALight` für Grow-Light
-- `HANumber` für Thresholds, Zeiten, Dimmdauer, `number.soil_air`, `number.soil_water`, `number.soil_depth_mm`
-- `HANumber` für `ha_dim_target_percent`
-- `HANumber` für `ha_dim_duration_minutes`
-- `HAButton` für `sync_time`
-- `HAButton` für `read_soil_raw_value`
-- `HAButton` für `start_ha_dim`
+- `HASensorNumber` for temperature, humidity, `sensor.soil_moisture_percent`, `sensor.soil_moisture_raw`, RPM
+- `HABinarySensor` for `light_fault`, `fan_fault`, `sht_fault`, `rtc_fault`, `eeprom_fault`
+- `HASensor` (text) for `light_fault_reason`
+- `HASwitch` for Fan, FanAuto, LightAuto, HardPowerOff, fallback behavior
+- `HALight` for Grow-Light
+- `HANumber` for thresholds, times, dim duration, `number.soil_air`, `number.soil_water`, `number.soil_depth_mm`
+- `HANumber` for `ha_dim_target_percent`
+- `HANumber` for `ha_dim_duration_minutes`
+- `HAButton` for `sync_time`
+- `HAButton` for `read_soil_raw_value`
+- `HAButton` for `start_ha_dim`
 
-Separate Soil-Capture-Buttons wie `capture_soil_air` oder `capture_soil_water` sind nicht Teil des HA-Entity-Modells. HA nutzt `read_soil_raw_value` und schreibt den gelesenen Wert per Script/Automation in `soil_air` oder `soil_water`.
+Separate soil capture buttons such as `capture_soil_air` or `capture_soil_water` are not part of the HA entity model. HA uses `read_soil_raw_value` and writes the read value into `soil_air` or `soil_water` by script/automation.
 
 ### API
 - `void begin();`
 - `void update(uint32_t nowMs);`
 - `void onMqttConnected();`
 
-### Zusätzliche Hilfsfunktionen
+### Additional Helper Functions
 - `void publishAllStates();`
 - `void publishSensorValues();`
 - `void publishConfigValues();`
 
-### Zusätzliche interne Zustände für HA-Dimmjob
+### Additional Internal States For HA Dimming Job
 - `uint8_t pendingHaDimTargetPercent;`
 - `uint16_t pendingHaDimDurationMinutes;`
 
-### Regeln
-- beim Reconnect alle relevanten States erneut publizieren
-- Light- und Switch-Zustände genügen; kein separater Sensor für Light-Ist-Helligkeit oder Lightmodus nötig
-- `start_ha_dim` validiert:
-  - Ziel 0..100
-  - Dauer 0..1440 Minuten
-- danach Aufruf:
+### Rules
+- on reconnect, publish all relevant states again
+- light and switch states are sufficient; no separate sensor for actual light brightness or light mode is required
+- `start_ha_dim` validates:
+  - target 0..100
+  - duration 0..1440 minutes
+- then calls:
   - `lightController.startHADimJob(target, durationMs)`
 
-### Persistenzhinweis
-Die Werte für:
+### Persistence Note
+The values for:
 - `ha_dim_target_percent`
 - `ha_dim_duration_minutes`
 
-sind **nicht persistent**, sondern nur Laufzeit-/Befehlsparameter.
-- Ein laufender HA-Dimmjob kann über den persistierten Resume-State (Start/Ziel/Dauer/Startzeit) nach Neustart rekonstruierbar gemacht werden.
+are **not persistent**, but only runtime/command parameters.
+- A running HA dimming job can be made reconstructable after restart through the persisted resume state (start/target/duration/start time).
 
-### Fehlerstatus auf Systemebene
-Die Firmware-Dokumentation nutzt folgende Fault-States:
+### System-Level Fault Status
+The firmware documentation uses the following fault states:
 
 - `light_fault`
 - `fan_fault`
@@ -662,89 +668,88 @@ Die Firmware-Dokumentation nutzt folgende Fault-States:
 - `rtc_fault`
 - `eeprom_fault`
 
-Nicht verwenden:
+Do not use:
 
 - `sensor_fault`
 - `system_fault`
 - `last_fault_code`
 
-Zusätzlicher Textstatus (als Text-`sensor`):
+Additional text status (as text `sensor`):
 
 - `light_fault_reason`
 
 ## 12. Smaeenhouse.ino
 
-### Aufgabe
-Zentrale Orchestrierung.
+### Purpose
+Central orchestration.
 
-### Verantwortlichkeiten
-- globale Modulinstanzen
-- Setup-Reihenfolge
-- ISR-Flags
-- Aufrufreihenfolge in `loop()`
+### Responsibilities
+- global module instances
+- setup order
+- ISR flags
+- call order in `loop()`
 
-### Setup-Reihenfolge
+### Setup Order
 1. Serial
 2. Wire
-3. Persistente Konfiguration aus AT24C32 laden oder Defaults
-4. Module konstruieren/initialisieren
-5. SHT-Thresholds anwenden
-6. RTC initialisieren und Alarme konfigurieren
-7. Netzwerk/HA starten
-8. erste NTP-Sync versuchen
-9. Interrupts aktivieren
+3. Load persistent configuration from AT24C32 or defaults
+4. Construct/initialize modules
+5. Apply SHT thresholds
+6. Initialize RTC and configure alarms
+7. Start network/HA
+8. Try first NTP sync
+9. Enable interrupts
 
-### Loop-Reihenfolge
+### Loop Order
 1. `nowMs = millis()`
 2. `network.update(nowMs)`
 3. `clock.update(nowMs)`
-4. `sht`-Alert-Flag prüfen und Status auswerten
-5. daraus `fan.setAutoDemand(...)`
-6. `rtcAlarmPending` prüfen und `clock.serviceAlarmFlags()` ausführen
-7. daraus ggf. `light.startArduinoDimJob(...)`
+4. check `sht` alert flag and evaluate status
+5. from that, call `fan.setAutoDemand(...)`
+6. check `rtcAlarmPending` and run `clock.serviceAlarmFlags()`
+7. from that, start `light.startArduinoDimJob(...)` if needed
 8. `fan.update(nowMs)`
 9. `light.update(nowMs)`
 10. `moisture.update(nowMs)`
 11. `ha.update(nowMs)`
 
-## 13. ISR-Strategie
+## 13. ISR Strategy
 
-Es sollte drei ISR-nahe Flags geben:
+There should be three ISR-adjacent flags:
 
 - `volatile bool shtAlertPending`
 - `volatile bool rtcAlarmPending`
-- Tach-ISR im FanController nur zum Pulse-Zählen
+- tach ISR in FanController only for pulse counting
 
-Wichtig:
-- keine I²C-Operation in ISR
-- keine MQTT-/HA-Operation in ISR
-- keine aufwendige Logik in ISR
+Important:
+- no I²C operation in ISR
+- no MQTT/HA operation in ISR
+- no expensive logic in ISR
 
-## 14. Logische Kernflüsse
+## 14. Logical Core Flows
 
 ### SHT Alert → Fan
-1. Pin-7-Interrupt setzt Flag
-2. Hauptloop liest Sensorstatus
-3. Wenn Reset-Bit gesetzt → Thresholds erneut schreiben
-4. Wenn Temp- oder Hum-Alert aktiv → `fan.setAutoDemand(true)`
-5. Wenn keine relevanten Alerts aktiv → `fan.setAutoDemand(false)`
+1. Pin 7 interrupt sets flag
+2. Main loop reads sensor status
+3. If reset bit is set → write thresholds again
+4. If temp or hum alert active → `fan.setAutoDemand(true)`
+5. If no relevant alerts are active → `fan.setAutoDemand(false)`
 
-### RTC-Alarm → Arduino-Lichtschedule
-1. DS3231-SQW/INT auf `PIN_RTC_ALARM` setzt Interrupt-Flag
-2. Hauptloop ruft `clock.serviceAlarmFlags()` auf
-3. `alarmFired(1)` / `alarmFired(2)` bestimmen, welcher Alarm ausgelöst wurde
-4. Alarmflag wird gelöscht
-5. je nach Event wird entsprechender Arduino-Dimmauftrag gestartet
+### RTC Alarm → Arduino Light Schedule
+1. DS3231 SQW/INT on `PIN_RTC_ALARM` sets interrupt flag
+2. Main loop calls `clock.serviceAlarmFlags()`
+3. `alarmFired(1)` / `alarmFired(2)` determine which alarm fired
+4. Alarm flag is cleared
+5. Depending on the event, the corresponding Arduino dimming request is started
 
-### HA-Lichtbetrieb
-1. Wenn `lightAutoMode == OFF`, akzeptiert LightController HA-Befehle
-2. HA-Schedule startet explizite Dimmjobs
-3. Manuelle Slider-/OnOff-Befehle wirken direkt
+### HA Light Operation
+1. If `lightAutoMode == OFF`, LightController accepts HA commands
+2. HA schedule starts explicit dimming jobs
+3. Manual slider/on-off commands act directly
 
 ### Fallback
-1. NetworkManager erkennt >10 min offline
-2. je nach Konfiguration:
-   - Licht aus
-   - oder internen Auto-Mode aktivieren
-3. lokale Funktionen laufen weiter
-
+1. NetworkManager detects offline >10 min
+2. depending on configuration:
+   - turn light off
+   - or activate internal Auto Mode
+3. local functions continue running

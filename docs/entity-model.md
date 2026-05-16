@@ -1,100 +1,106 @@
 # Home Assistant Entity Model
 
-Diese Datei beschreibt die geplanten Home-Assistant-Entities und ihre Bedeutung.
+This file describes the planned Home Assistant entities and their meaning.
 
-## Gerät
+## Device
 
-Ein einzelnes HA-Gerät:
+A single HA device:
 
 - Name: `Grow Controller`
-- Plattform: ArduinoHA / MQTT Discovery
+- Platform: ArduinoHA / MQTT Discovery
 
-## Sensoren
+## Sensors
 
-### Temperatur
-- Entity-Typ: `sensor`
+### Temperature
+- Entity type: `sensor`
 - Name: `temperature`
-- Richtung: Arduino → HA
-- Einheit: `°C`
+- Direction: Arduino → HA
+- Unit: `°C`
 
-### Luftfeuchtigkeit
-- Entity-Typ: `sensor`
+### Humidity
+- Entity type: `sensor`
 - Name: `humidity`
-- Richtung: Arduino → HA
-- Einheit: `%`
+- Direction: Arduino → HA
+- Unit: `%`
 
-### Bodenfeuchte Prozent
-- Entity-Typ: `sensor`
+### Soil Moisture Percent
+- Entity type: `sensor`
 - Name: `soil_moisture_percent`
-- Richtung: Arduino → HA
-- Einheit: `%`
-- Bedeutung:
-  - berechneter Wert aus `soil_air`, `soil_water`, aktuellem Rohwert und `soil_depth_mm`
-  - bei `soil_depth_mm < 20` soll der Wert unavailable/invalid sein
+- Direction: Arduino → HA
+- Unit: `%`
+- Meaning:
+  - calculated value from `soil_air`, `soil_water`, current raw value, and `soil_depth_mm`
+  - air reference corresponds to `0 %`
+  - water reference at `120 mm` corresponds to `100 %`
+  - valid values are constrained to `0..100 %`
+  - if `soil_depth_mm < 20`, the value should be unavailable/invalid
 
-### Bodenfeuchte Rohwert
-- Entity-Typ: `sensor`
+### Soil Moisture Raw Value
+- Entity type: `sensor`
 - Name: `soil_moisture_raw`
-- Richtung: Arduino → HA
-- Einheit: roh / analog
+- Direction: Arduino → HA
+- Unit: raw / analog
+- Meaning:
+  - current ADC-related raw value of the sensor
+  - may also be published when percent calculation is invalid
 
-### Lüfter-RPM
-- Entity-Typ: `sensor`
+### Fan RPM
+- Entity type: `sensor`
 - Name: `fan_rpm`
-- Richtung: Arduino → HA
-- Einheit: `rpm`
+- Direction: Arduino → HA
+- Unit: `rpm`
 
-## Fault-Entities
+## Fault Entities
 
 ### Light Fault
-- Entity-Typ: `binary_sensor`
+- Entity type: `binary_sensor`
 - Name: `light_fault`
-- Richtung: Arduino → HA
-- Bedeutung:
-  - Fehler im Lichtpfad, besonders AD5263-/I²C-/Readback-bezogen
+- Direction: Arduino → HA
+- Meaning:
+  - fault in the light path, especially AD5263/I²C/readback related
 
 ### Fan Fault
-- Entity-Typ: `binary_sensor`
+- Entity type: `binary_sensor`
 - Name: `fan_fault`
-- Richtung: Arduino → HA
-- Bedeutung:
-  - Lüfter soll effektiv laufen, aber nach Karenzzeit keine Tachopulse
+- Direction: Arduino → HA
+- Meaning:
+  - fan should effectively be running, but no tach pulses after grace period
 
 ### SHT Fault
-- Entity-Typ: `binary_sensor`
+- Entity type: `binary_sensor`
 - Name: `sht_fault`
-- Richtung: Arduino → HA
-- Bedeutung:
-  - SHT3x-Kommunikation oder Sensorstatus problematisch
+- Direction: Arduino → HA
+- Meaning:
+  - SHT3x communication or sensor status is problematic
 
 ### RTC Fault
-- Entity-Typ: `binary_sensor`
+- Entity type: `binary_sensor`
 - Name: `rtc_fault`
-- Richtung: Arduino → HA
-- Bedeutung:
-  - DS3231 nicht verfügbar oder Zeitbasisproblem
+- Direction: Arduino → HA
+- Meaning:
+  - DS3231 unavailable or time-base problem
 
 ### EEPROM Fault
-- Entity-Typ: `binary_sensor`
+- Entity type: `binary_sensor`
 - Name: `eeprom_fault`
-- Richtung: Arduino → HA
-- Bedeutung:
-  - AT24C32 nicht verfügbar oder Persistenzproblem
+- Direction: Arduino → HA
+- Meaning:
+  - AT24C32 unavailable or persistence problem
 
 ### Light Fault Reason
-- Entity-Typ: `sensor` (Text)
+- Entity type: `sensor` (text)
 - Name: `light_fault_reason`
-- Richtung: Arduino → HA
-- Bedeutung:
-  - textuelle Ursache für `light_fault`
-- Beispiele:
+- Direction: Arduino → HA
+- Meaning:
+  - textual cause for `light_fault`
+- Examples:
   - `ad5263_not_found`
   - `ad5263_write_failed`
   - `ad5263_readback_mismatch`
 
-Die detaillierte AD5263-Readback- und Retry-Strategie ist in `MODULES.md` beschrieben.
+The detailed AD5263 readback and retry strategy is described in `MODULES.md`.
 
-Nicht Teil des Modells:
+Not part of the model:
 
 - `sensor_fault`
 - `system_fault`
@@ -103,67 +109,67 @@ Nicht Teil des Modells:
 ## Switches
 
 ### Fan Switch
-- Entity-Typ: `switch`
+- Entity type: `switch`
 - Name: `fan`
-- Richtung: HA ↔ Arduino
-- Bedeutung:
-  - manuelles Ein/Aus des Lüfters
+- Direction: HA ↔ Arduino
+- Meaning:
+  - manual fan on/off
 
 ### Fan Auto Mode
-- Entity-Typ: `switch`
+- Entity type: `switch`
 - Name: `fan_auto_mode`
-- Richtung: HA ↔ Arduino
-- Bedeutung:
-  - ON: SHT-Alert steuert den Lüfter
-  - OFF: manuelle Lüftersteuerung
+- Direction: HA ↔ Arduino
+- Meaning:
+  - ON: SHT alert controls the fan
+  - OFF: manual fan control
 
 ### Light Auto Mode
-- Entity-Typ: `switch`
+- Entity type: `switch`
 - Name: `light_auto_mode`
-- Richtung: HA ↔ Arduino
-- Bedeutung:
-  - ON: Arduino-Schedule über DS3231-Alarme aktiv
-  - OFF: HA-Steuerung aktiv
+- Direction: HA ↔ Arduino
+- Meaning:
+  - ON: Arduino schedule via DS3231 alarms active
+  - OFF: HA control active
 
 ### Light Hard Power Off
-- Entity-Typ: `switch`
+- Entity type: `switch`
 - Name: `light_hard_power_off`
-- Richtung: HA ↔ Arduino
-- Bedeutung:
-  - schaltet das Relais sofort
-  - Dimmerzustand bleibt intern erhalten
+- Direction: HA ↔ Arduino
+- Meaning:
+  - switches the relay immediately
+  - dimmer state is retained internally
 
-### Fallback-Verhalten
-- Entity-Typ: `switch`
+### Fallback Behavior
+- Entity type: `switch`
 - Name: `light_fallback_to_auto`
-- Richtung: HA ↔ Arduino
-- Bedeutung:
-  - ON: bei längerem Offline-Zustand internen Arduino-Auto-Mode fürs Licht aktivieren
-  - OFF: Licht bei längerem Offline-Zustand ausschalten
+- Direction: HA ↔ Arduino
+- Meaning:
+  - ON: activate internal Arduino Auto Mode for the light during longer offline state
+  - OFF: turn light off during longer offline state
 
 ## Light
 
 ### Grow Light
-- Entity-Typ: `light`
+- Entity type: `light`
 - Name: `grow_light`
-- Richtung: HA ↔ Arduino
-- Funktionen:
+- Direction: HA ↔ Arduino
+- Functions:
   - ON/OFF
   - Brightness
 
-### Wichtige Regel
-Die Light-Entity ist nur voll wirksam, wenn:
+### Important Rule
+The Light entity is only fully effective when:
 
 - `light_auto_mode = OFF`
 
-Wenn `light_auto_mode = ON`:
-- Brightness-Änderungen dürfen optional als temporäre Korrektur behandelt werden
-- HA-Schedule-Trigger werden ignoriert
-- Ein/Aus darf ignoriert oder deaktiviert werden
+When `light_auto_mode = ON`:
+- brightness changes may optionally be treated as temporary correction
+- HA schedule triggers are ignored
+- on/off may be ignored or disabled
 
 ## Number Entities
 
-### Temperatur / Feuchte Thresholds
+### Temperature / Humidity Thresholds
 - `temp_high_set`
 - `temp_high_clear`
 - `temp_low_set`
@@ -173,51 +179,53 @@ Wenn `light_auto_mode = ON`:
 - `hum_low_set`
 - `hum_low_clear`
 
-Richtung:
+Direction:
 - HA ↔ Arduino
 
-Persistenz:
-- ja, externes AT24C32-EEPROM via JC_EEPROM
+Persistence:
+- yes, external AT24C32 EEPROM via JC_EEPROM
 
-### Arduino-Lichtschedule
+### Arduino Light Schedule
 - `light_on_time_minutes`
 - `light_off_time_minutes`
 - `light_dim_minutes`
 
-Richtung:
+Direction:
 - HA ↔ Arduino
 
-Persistenz:
-- ja, externes AT24C32-EEPROM via JC_EEPROM
+Persistence:
+- yes, external AT24C32 EEPROM via JC_EEPROM
 
-Bemerkung:
-- Zeitformat = Minuten seit Mitternacht
-- Änderungen müssen zusätzlich die DS3231-Alarmregister aktualisieren
+Note:
+- time format = minutes since midnight
+- changes must also update the DS3231 alarm registers
 
-### Bodenfeuchte-Kalibrierung
+### Soil Moisture Calibration
 - `soil_air`
 - `soil_water`
 - `soil_depth_mm`
 
-Richtung:
+Direction:
 - HA ↔ Arduino
 
-Persistenz:
-- ja, externes AT24C32-EEPROM via JC_EEPROM
+Persistence:
+- yes, external AT24C32 EEPROM via JC_EEPROM
 
-Grenzen:
+Limits:
 
 - `soil_air`: min 0, max 1000, step 1
 - `soil_water`: min 0, max 1000, step 1
-- `soil_depth_mm`: nutzereingetragener Millimeterwert mit projektdefinierten Grenzen
+- `soil_depth_mm`: user-entered millimeter value with project-defined limits
 
-Bemerkung:
+Note:
 
-- `soil_air` und `soil_water` sind user-facing Kalibrierwerte; interne ADC-Rohwerte dürfen firmwareseitig defensiv auf `0..4095` begrenzt werden.
-- `soil_depth_mm` ist ein aktiver Korrekturparameter, nicht nur informativ.
-- Wasserreferenz ist `120 mm`.
+- `soil_air` and `soil_water` use the expected real project range; air values are expected below approx. 900.
+- The firmware may set separate hard internal ADC safety limits to `0..4095`.
+- `soil_depth_mm` is an active correction parameter, not merely informational.
+- Values below `20 mm` are invalid for percent calculation because the first physical sensor marking is at `20 mm`.
+- Water reference is `120 mm`.
 
-Konzeptionelle Prozentberechnung:
+Conceptual percent calculation:
 
 ```text
 SOIL_REFERENCE_DEPTH_MM = 120
@@ -225,86 +233,115 @@ depth_factor = soil_depth_mm / SOIL_REFERENCE_DEPTH_MM
 percent = (soil_air - raw) / ((soil_air - soil_water) * depth_factor) * 100
 ```
 
-Gültige Prozentwerte werden auf `0..100 %` begrenzt. Wenn `soil_depth_mm < 20`, bleibt `sensor.soil_moisture_percent` unavailable/invalid; `sensor.soil_moisture_raw` darf weiter publiziert werden.
+Valid percent values are constrained to `0..100 %`. If `soil_depth_mm < 20`, `sensor.soil_moisture_percent` remains unavailable/invalid; `sensor.soil_moisture_raw` may continue to be published.
 
-### HA-Dimmauftrag
+The linear depth correction is a deliberate approximation. A measurement series exists,
+but the project currently accepts this model as sufficiently accurate.
+
+### HA Dimming Request
 - `ha_dim_target_percent`
 - `ha_dim_duration_minutes`
 
-Richtung:
+Direction:
 - HA → Arduino
 
-Persistenz:
-- nein
+Persistence:
+- no
 
-Bedeutung:
-- Laufzeit-/Befehlsparameter für einen expliziten HA-Dimmjob
-- werden erst wirksam, wenn `start_ha_dim` ausgelöst wird
-- Wiederaufnahme eines laufenden HA-Dimmjobs nach Neustart erfolgt über den intern persistierten Resume-State (nicht über die Number-States selbst)
+Meaning:
+- runtime/command parameters for an explicit HA dimming job
+- become effective only when `start_ha_dim` is triggered
+- resumption of a running HA dimming job after restart happens through the internally persisted resume state (not through the Number states themselves)
 
 ## Buttons
 
 ### Sync Time
-- Entity-Typ: `button`
+- Entity type: `button`
 - Name: `sync_time`
-- Richtung: HA → Arduino
-- Wirkung:
-  - NTP-Sync anstoßen
-  - RTC aktualisieren
-  - DS3231-Alarme neu schreiben
+- Direction: HA → Arduino
+- Effect:
+  - trigger NTP sync
+  - update RTC
+  - rewrite DS3231 alarms
 
 ### Read Soil Raw Value
-- Entity-Typ: `button`
+- Entity type: `button`
 - Name: `read_soil_raw_value`
-- Richtung: HA → Arduino
-- Wirkung:
-  - aktuellen Rohwert sofort auslesen und publizieren
-  - gedacht für die HA-geführte Kalibrierung
-  - HA schreibt den publizierten Rohwert anschließend in `number.soil_air` oder `number.soil_water`
+- Direction: HA → Arduino
+- Effect:
+  - immediately read and publish current raw value
+  - intended for HA-guided calibration
+  - HA then writes the published raw value to `number.soil_air` or `number.soil_water`
 
-Separate Buttons wie `capture_soil_air` oder `capture_soil_water` sind nicht Teil des Modells.
+Separate buttons such as `capture_soil_air` or `capture_soil_water` are not part of the model.
 
 ### Start HA Dim
-- Entity-Typ: `button`
+- Entity type: `button`
 - Name: `start_ha_dim`
-- Richtung: HA → Arduino
-- Wirkung:
-  - startet einen Dimmauftrag von der aktuellen Ist-Helligkeit
-  - Ziel = `ha_dim_target_percent`
-  - Dauer = `ha_dim_duration_minutes`
+- Direction: HA → Arduino
+- Effect:
+  - starts a dimming request from the current actual brightness
+  - target = `ha_dim_target_percent`
+  - duration = `ha_dim_duration_minutes`
 
-### Wichtige Regel
-`start_ha_dim` ist nur wirksam, wenn:
+### Important Rule
+`start_ha_dim` is only effective when:
 
 - `light_auto_mode = OFF`
 
-Bei `light_auto_mode = ON` wird der Befehl ignoriert.
+When `light_auto_mode = ON`, the command is ignored.
 
-## State-Recovery / Re-Publish
+## Soil Moisture Calibration Workflow
 
-Nach Start oder MQTT-Reconnect sollen aktiv erneut publiziert werden:
+The firmware does not manage a calibration assistant and does not contain an internal
+calibration state machine. Home Assistant orchestrates the workflow with the
+generic button `read_soil_raw_value` and the three persistent Number entities.
 
-- Switch-Zustände
-- Light-Zustand
-- Number-Konfigurationswerte
-- Fault-States inkl. `light_fault_reason`
-- aktuelle Sensorwerte
+Air step:
+- The user places the sensor dry in air.
+- HA calls `button.read_soil_raw_value`.
+- HA waits briefly until `sensor.soil_moisture_raw` is updated.
+- HA writes this value to `number.soil_air`.
 
-Darum sind separate Diagnose-Sensoren für:
+Water step:
+- The user places the sensor in water at the reference depth of `120 mm`.
+- HA calls `button.read_soil_raw_value`.
+- HA waits briefly until `sensor.soil_moisture_raw` is updated.
+- HA writes this value to `number.soil_water`.
 
-- Light-Ist-Helligkeit
-- Lightmodus
+Depth step:
+- The user manually enters the actual insertion depth in the substrate in `number.soil_depth_mm`.
+- The firmware actively uses this value for percent calculation.
 
-nicht zwingend nötig.
+Separate firmware buttons such as `capture_soil_air` or `capture_soil_water`
+should not be added. The generic raw-read button plus HA scripts or
+HA automations is sufficient and avoids unnecessary MQTT entities.
 
-## Optional spätere Diagnose-Entities
+## State Recovery / Re-Publish
 
-Nur falls gewünscht:
+After startup or MQTT reconnect, the following should be actively published again:
 
-- aktiver Licht-Steuermodus
-- aktueller AD5263-Code oder abgeleiteter Dimmer-Widerstand
-- Fallback aktiv
-- letzte NTP-Sync-Zeit
-- RTC-Alarmzustand
+- switch states
+- light state
+- number configuration values
+- fault states including `light_fault_reason`
+- current sensor values
 
-Diese sind optional und nicht Teil des Pflichtumfangs.
+Therefore separate diagnostic sensors for:
+
+- actual light brightness
+- light mode
+
+are not strictly required.
+
+## Optional Future Diagnostic Entities
+
+Only if desired:
+
+- active light control mode
+- current AD5263 code or derived dimmer resistance
+- fallback active
+- last NTP sync time
+- RTC alarm state
+
+These are optional and not part of the mandatory scope.

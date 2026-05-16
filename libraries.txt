@@ -1,6 +1,6 @@
-Installiere diese Bibliotheken in der Arduino IDE, bevor du das Projekt kompilierst.
+Install these libraries in the Arduino IDE before compiling the project.
 
-## Kernbibliotheken / Abhängigkeiten
+## Core Libraries / Dependencies
 
 - Sensirion Core https://github.com/Sensirion/arduino-core/
 - Sensirion arduino-i2c-sht3x https://github.com/Sensirion/arduino-i2c-sht3x
@@ -8,32 +8,31 @@ Installiere diese Bibliotheken in der Arduino IDE, bevor du das Projekt kompilie
 - WiFiNINA https://docs.arduino.cc/libraries/wifinina/
 - arduino-home-assistant by Dawid Chyrzynski https://github.com/dawidchyrzynski/arduino-home-assistant
 
-## Zusätzliche Bibliotheken
+## Additional Libraries
 
 - AD5263 by Rob Tillaart https://github.com/RobTillaart/AD5263
-  - Für die AD5263BRUZ50-Dimmeransteuerung per I²C.
-  - Hinweis: Bibliothek ist noch in einer frühen/Test-Phase; projektspezifische Anpassungen können nötig sein.
-  - Für die in der Spezifikation geforderte Readback-/Plausibilitätsprüfung zur Fault-Erkennung können projektspezifische Ergänzungen oder zusätzliche Bibliotheksfunktionen nötig sein.
+  - For AD5263BRUZ50 dimmer control via I²C.
+  - Note: The library is still in an early/test phase; project-specific adjustments may be required.
+  - Project-specific additions or additional library functions may be required for the readback/plausibility checks required by the specification for fault detection.
 
 - JC_EEPROM by Jack Christensen https://github.com/JChristensen/JC_EEPROM
-  - Zugriff auf das externe **AT24C32-EEPROM** des
-    WINGONEER Tiny DS3231 AT24C32 I2C Moduls.
-  - Für das Projekt ist diese Bibliothek fest vorgesehen.
+  - Access to the external **AT24C32 EEPROM** of the
+    WINGONEER Tiny DS3231 AT24C32 I2C module.
+  - This library is fixed for the project.
 
 - Streaming by Mikal Hart / Janelia https://github.com/janelia-arduino/Streaming
-  - Wird von **JC_EEPROM** benötigt.
+  - Required by **JC_EEPROM**.
 
-## Bewusst nicht mehr verwendet
+## Intentionally No Longer Used
 
 - SAMD_SafeFlashStorage
-  - Persistenz erfolgt nicht mehr im internen Flash des Nano 33 IoT.
+  - Persistence is no longer stored in the internal flash of the Nano 33 IoT.
 
-## Hinweise
+## Notes
 
-- `Credentials.h` lokal aus `Credentials.example.h` erzeugen
-- `Credentials.h` nicht committen
-- Prüfe bei Änderungen an der RTC die Verfügbarkeit der in RTClib benötigten
-  DS3231-Alarmfunktionen:
+- Create local `Credentials.h` from `Credentials.example.h`
+- Do not commit `Credentials.h`
+- When changing RTC behavior, check availability of the required DS3231 alarm functions in RTClib:
   - `writeSqwPinMode(...)`
   - `setAlarm1(...)`
   - `setAlarm2(...)`
