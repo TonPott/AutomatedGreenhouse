@@ -1,128 +1,150 @@
-Repository documentation may be in German. Implement code, identifiers, comments, and commit summaries in English only.
+Repository documentation is currently maintained in English. Implement code, identifiers, comments, and commit summaries in English only.
 
-## Zweck
+## Purpose
 
-Diese Datei definiert verbindliche Arbeitsregeln für Codex und andere KI-Agenten in diesem Repository.
+This file defines mandatory working rules for Codex and other AI agents in this repository.
 
-## Projektkontext
+## Project Context
 
-Dies ist ein Arduino-IDE-kompatibles Firmware-Projekt für einen **Arduino Nano 33 IoT**.
-Die Firmware steuert Sensorik, Lüfter, Licht, RTC, externes EEPROM und Home-Assistant-MQTT-Integration.
+This is an Arduino-IDE-compatible firmware project for an **Arduino Nano 33 IoT**.
+The firmware controls sensors, fan, light, RTC, external EEPROM, and Home Assistant MQTT integration.
 
-## Verbindliche Arbeitsregeln
+## Current Project Phase
 
-### 1. Projektstruktur beibehalten
-- Das Projekt bleibt ein klassischer Arduino-Sketchordner.
-- `Smaeenhouse.ino` bleibt im Repo-Wurzelverzeichnis.
-- Header- und CPP-Dateien bleiben im gleichen Ordner wie `Smaeenhouse.ino`, sofern nicht ausdrücklich anders gewünscht.
+The repository is in a migration phase based on existing firmware.
 
-### 2. Credentials niemals überschreiben
-- `Credentials.h` ist lokal und geheim.
-- Niemals echte Zugangsdaten in das Repo schreiben.
-- Nur `Credentials.example.h` darf als Vorlage verändert werden.
+- Existing code is refactored and migrated deliberately.
+- Do not keep parallel legacy paths as runtime options unless they are explicitly documented.
+- The old PWM/RC/PC817 light path is no longer a valid target concept.
+- The current target path for light dimming is the AD5263BRUZ50 resistance path.
+- Authoritative sources for the migration are:
+  - `SPEC.md`
+  - `MODULES.md`
+  - `docs/entity-model.md`
+- For open work and validation tasks, consult `ROADMAP.md`.
+- For rationale behind major hardware, module, or design changes, consult `DECISIONS.md`.
+- If existing code and current documentation contradict each other, the current documentation takes precedence.
+- Persistence is extended deliberately without creating existing configuration values a second time.
+- Resume state and fault states are part of the mandatory migration scope.
 
-### 3. Keine I²C-Logik in ISR
-- ISR dürfen nur Flags setzen oder Pulse zählen.
-- Keine Wire-/I²C-Kommunikation in ISR.
-- Keine Sensorabfragen in ISR.
-- Das gilt ausdrücklich auch für:
-  - SHT-Alert
-  - DS3231-SQW/INT
-  - externe AT24C32-EEPROM-Zugriffe
+## Mandatory Working Rules
 
-### 4. Keine MQTT-/HA-Logik in ISR
-- MQTT, ArduinoHA und Publishes nur im Hauptloop bzw. in normalen Methoden.
-- ISR bleiben minimal.
+### 1. Keep The Project Structure
+- The project remains a classic Arduino sketch folder.
+- The main sketch is located at `Smaeenhouse/Smaeenhouse.ino`.
+- Header and CPP files remain in the same folder as the main sketch unless explicitly requested otherwise.
 
-### 5. Light-Logik strikt trennen
-Es gibt zwei Steuerwelten:
-- `light_auto_mode = ON` → Arduino-Schedule aktiv, HA-Schedule ignorieren
-- `light_auto_mode = OFF` → HA-Steuerung aktiv, Arduino-Schedule ignorieren
+### 2. Never Overwrite Credentials
+- `Credentials.h` is local and secret.
+- Never write real credentials to the repository.
+- Only `Credentials.example.h` may be changed as a template.
 
-Diese Trennung darf nicht aufgeweicht werden.
+### 3. No I²C Logic In ISRs
+- ISRs may only set flags or count pulses.
+- No Wire/I²C communication in ISRs.
+- No sensor reads in ISRs.
+- This explicitly also applies to:
+  - SHT alert
+  - DS3231 SQW/INT
+  - external AT24C32 EEPROM access
+  - AD5263 access
 
-### 6. HA-Dimmjob nur über die festgelegten Entities
-Zeitgesteuerte HA-Dimmjobs werden ausschließlich über folgende Entities modelliert:
+### 4. No MQTT/HA Logic In ISRs
+- MQTT, ArduinoHA, and publishes only in the main loop or normal methods.
+- ISRs remain minimal.
+
+### 5. Strictly Separate Light Logic
+There are two control worlds:
+- `light_auto_mode = ON` → Arduino schedule active, HA schedule ignored
+- `light_auto_mode = OFF` → HA control active, Arduino schedule ignored
+
+This separation must not be weakened.
+
+### 6. HA Dimming Job Only Through The Defined Entities
+Timed HA dimming jobs are modeled exclusively through these entities:
 - `number.ha_dim_target_percent`
 - `number.ha_dim_duration_minutes`
 - `button.start_ha_dim`
 
-Keine alternativen JSON-/String-Kommandos einführen, außer der Nutzer fordert das explizit.
+Do not introduce alternative JSON/string commands unless the user explicitly requests them.
 
-### 7. Persistenz über externes RTC-EEPROM
-- Verwende das **AT24C32-EEPROM** des WINGONEER Tiny DS3231 AT24C32 I2C Moduls.
-- Keine `SAMD_SafeFlashStorage`-Persistenz mehr verwenden.
-- Verwende für das externe EEPROM die Bibliothek **JC_EEPROM**.
-- Kapsle den EEPROM-Zugriff in einer projektinternen Persistenzschicht.
-- Schreibe nur bei tatsächlichen Änderungen.
-- Vermeide unnötig häufige Writes im normalen Laufbetrieb.
+### 7. Persistence Through External RTC EEPROM
+- Use the **AT24C32 EEPROM** of the WINGONEER Tiny DS3231 AT24C32 I2C module.
+- Do not use `SAMD_SafeFlashStorage` persistence anymore.
+- Use the **JC_EEPROM** library for the external EEPROM.
+- Encapsulate EEPROM access in a project-internal persistence layer.
+- Write only when values actually changed.
+- Avoid unnecessarily frequent writes during normal runtime.
+- Extend persistence deliberately with resume state without creating existing values a second time.
 
-### 8. RTC-Alarme für den Arduino-internen Lichtplan verwenden
-- Nutze die beiden DS3231-Alarme für den internen Arduino-Lichtplan.
-- `Alarm1` und `Alarm2` repräsentieren die gespeicherten Ein-/Aus- bzw. Dim-On-/Dim-Off-Zeiten.
-- Die Zeiten aus der persistierten Konfiguration werden nach Boot, Zeit-Sync und Konfigurationsänderungen in die DS3231-Alarmregister geschrieben.
-- Der SQW/INT-Ausgang der DS3231 wird an `PIN_RTC_ALARM` angeschlossen.
-- Die ISR setzt nur ein Flag; Auswertung erfolgt im Hauptloop über RTClib.
+### 8. Use RTC Alarms For The Arduino-Internal Light Schedule
+- Use both DS3231 alarms for the internal Arduino light schedule.
+- `Alarm1` and `Alarm2` represent the stored on/off or dim-on/dim-off times.
+- The times from persisted configuration are written to the DS3231 alarm registers after boot, time sync, and configuration changes.
+- The SQW/INT output of the DS3231 is connected to `PIN_RTC_ALARM`.
+- The ISR only sets a flag; evaluation happens in the main loop through RTClib.
 
-### 9. Bibliotheken nicht unnötig erweitern
-Keine neuen Bibliotheken einführen, wenn:
-- vorhandene Projektbibliotheken genügen
-- die Funktion mit Standard-Arduino-Mitteln umsetzbar ist
+### 9. Do Not Add Libraries Unnecessarily
+Do not introduce new libraries if:
+- existing project libraries are sufficient
+- the function can be implemented with standard Arduino means
 
-Wenn doch eine neue Bibliothek nötig ist:
-- Begründung in der Änderung dokumentieren
-- `libraries.txt` aktualisieren
+If a new library is still needed:
+- document the reason in the change
+- update `libraries.txt`
 
-### 10. Home-Assistant-States sauber republishen
-Nach Start oder MQTT-Reconnect müssen:
-- Light-State
-- Switch-States
-- Number-Konfigurationswerte
-- relevante Sensorwerte
+### 10. Republish Home Assistant States Cleanly
+After startup or MQTT reconnect, these must be published again to HA:
+- light state
+- switch states
+- number configuration values
+- relevant sensor values
 
-erneut an HA publiziert werden.
+### 11. FanController Remains Dumb Regarding Thresholds
+- FanController must not evaluate its own temperature/RH thresholds.
+- The decision comes exclusively from the SHT alert logic.
 
-### 11. FanController bleibt dumm bezüglich Thresholds
-- FanController darf keine eigenen Temperatur-/RH-Thresholds auswerten.
-- Die Entscheidung kommt ausschließlich aus der SHT-Alert-Logik.
+### 12. Soil Moisture Calibration Remains HA-Controlled
+- Do not invent an internal calibration routine in the firmware.
+- Firmware provides raw values and stores final calibration data.
+- HA guides the user through the routine.
+- Do not introduce additional soil capture buttons such as `capture_soil_air` or `capture_soil_water` unless explicitly requested.
 
-### 12. Bodenfeuchte-Kalibrierung bleibt HA-gesteuert
-- Keine interne Kalibrierroutine in der Firmware erfinden.
-- Firmware liefert Rohwerte und speichert finale Kalibrierdaten.
-- HA führt den Benutzer durch die Routine.
+### 13. Align Changes With Documentation First
+Before larger code changes:
+- consider `SPEC.md`
+- consider `MODULES.md`
+- consider `docs/entity-model.md`
+- check `ROADMAP.md` for open validation or follow-up items
+- check `DECISIONS.md` for rationale behind major design choices
+- consider the existing schematic in the project folder
 
-### 13. Änderungen zuerst an Doku anlehnen
-Vor größeren Codeänderungen:
-- `SPEC.md` beachten
-- `MODULES.md` beachten
-- `entity-model.md` beachten
-- vorhandenen Schaltplan im Projektordner beachten
+### 14. Use SHTa Routines
+- `SHTa.h/.cpp` should continue to be used
+- ask before changing them and provide a reason.
 
-### 14. SHTa-Routinen verwenden
-- `SHTa.h/.cpp` sollen weiterverwendet werden
-- vor Änderungen mit Begründung nachfragen.
+### 15. Keep Documentation Understandable For New Users
+- Hardware sections should be written so the project is understandable on first read.
+- Mention the schematic in the project folder as the primary reference.
+- Text documentation should also describe signal conditioning for:
+  - light dimmer (AD5263 resistance path between `Dim+` and `Dim-`)
+  - fan tachometer (2N3904 stage)
+- Do not duplicate roadmap items into README/SPEC/MODULES unless they are actual current requirements.
+- Keep open tasks in `ROADMAP.md` and historical rationale in `DECISIONS.md`.
 
-### 15. Dokumentation für neue Nutzer verständlich halten
-- Hardware-Abschnitte so formulieren, dass das Projekt auch beim ersten Lesen verständlich bleibt.
-- Schaltplan im Projektordner als Primärreferenz erwähnen.
-- Textliche Doku soll zusätzlich die Signalaufbereitung für:
-  - Licht-Optokoppler (RC-Glied)
-  - Lüfter-Tacho (2N3904-Stufe)
-  beschreiben.
+If code and documentation contradict each other, documentation comes first, unless the user explicitly says otherwise.
 
-Wenn Code und Doku widersprechen, gilt zuerst die Doku — außer der Nutzer sagt ausdrücklich etwas anderes.
+## Preferred Working Order
 
-## Bevorzugte Arbeitsweise
+1. Fix compile errors first
+2. Then clean up state logic
+3. Then complete HA entity mapping
+4. Then polish / logging / debugging
 
-1. Compile-Fehler zuerst beheben
-2. Danach Zustandslogik bereinigen
-3. Danach HA-Entity-Mapping vervollständigen
-4. Danach Feinschliff / Logging / Debugging
+## Not Wanted
 
-## Nicht erwünscht
-
-- große Logikblöcke direkt in `Smaeenhouse.ino`
-- versteckte globale Nebenwirkungen
-- blockierende `delay()`-Ketten
-- Bibliotheken vendoren/einchecken ohne Grund
-- spontane Änderung der Repo-Struktur
+- large logic blocks directly in `Smaeenhouse/Smaeenhouse.ino`
+- hidden global side effects
+- blocking `delay()` chains
+- vendoring/checking in libraries without a reason
+- spontaneous changes to the repository structure

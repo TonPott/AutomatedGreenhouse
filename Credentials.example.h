@@ -1,7 +1,7 @@
 #pragma once
 
-// Beispiel-Datei.
-// Kopiere diese Datei nach Credentials.h und trage dort deine echten Werte ein.
+// Example file.
+// Copy this file to Credentials.h and enter your real values there.
 
 #define WIFI_SSID       "YOUR_WIFI_SSID"
 #define WIFI_PASSWORD   "YOUR_WIFI_PASSWORD"
@@ -11,15 +11,15 @@
 #define MQTT_USERNAME   "mqtt_user"
 #define MQTT_PASSWORD   "mqtt_password"
 
-// Anzeigename / Geräteinformationen
+// Display name / device information
 #define DEVICE_NAME     "Grow Controller"
 #define DEVICE_ID       "grow_controller_nano33iot"
 #define MQTT_PREFIX     "homeassistant"
 
-// Zeit / NTP
+// Time / NTP
 #define NTP_SERVER      "pool.ntp.org"
 
-// Einfache Zeitzonenparameter.
-// Optional kann die Umsetzung später auf eine genauere TZ-Logik erweitert werden.
+// Simple timezone parameters.
+// Optionally, this can later be extended to more precise TZ logic.
 #define UTC_OFFSET_SECONDS   3600
 #define DST_OFFSET_SECONDS   3600

@@ -1,240 +1,202 @@
 # Grow Controller (Arduino Nano 33 IoT)
 
-Dieses Repository enthält die Firmware und die Projektdokumentation für einen Grow-Controller auf Basis eines **Arduino Nano 33 IoT**.
-Entstanden in enger Zusammenarbeit mit ChatGPT 5.4 und Codex.
+This repository contains the firmware and project documentation for a grow controller based on an **Arduino Nano 33 IoT**.
 
-## Ziel
+## Goal
 
-Der Controller steuert und überwacht:
+The controller manages and monitors:
 
-- Temperatur und Luftfeuchtigkeit über einen **SHT3x**
-- einen **12V 3-Pin-Lüfter** mit Tachoauswertung
-- ein **dimmbares Grow-Light** über PWM + Relais
-- einen **kapazitiven Bodenfeuchtesensor**
-- eine **DS3231-RTC mit AT24C32-EEPROM**
-- die Integration in **Home Assistant** per **MQTT** über **ArduinoHA**
+- temperature and humidity via an **SHT3x**
+- a **12V 3-pin fan** with tachometer evaluation
+- a **dimmable grow light** via AD5263 dimmer + relay
+- a **capacitive soil moisture sensor**
+- a **DS3231 RTC with AT24C32 EEPROM**
+- **Home Assistant** integration via **MQTT** using **ArduinoHA**
 
-Das System soll sowohl mit Home Assistant als auch bei Verbindungsverlust lokal autonom funktionieren.
+The system should work with Home Assistant and also continue operating locally and autonomously if the connection is lost.
 
 ## Hardware
 
 - Arduino Nano 33 IoT
-- Temperature and Humidity Sensor CQrobot CQRSHT31FA (Sensirion SHT31-DIS-F, I²C + Alert-Pin)
-- 3-Pin 12V PC-Fan
-- WINGONEER Tiny DS3231 AT24C32 I2C Modul
+- Temperature and Humidity Sensor CQrobot CQRSHT31FA (Sensirion SHT31-DIS-F, I²C + alert pin)
+- 3-pin 12V PC fan
+- WINGONEER Tiny DS3231 AT24C32 I2C module
   - RTC: **DS3231**
-  - externes EEPROM: **AT24C32**
-  - SQW/INT-Ausgang für RTC-Alarme
+  - external EEPROM: **AT24C32**
+  - SQW/INT output for RTC alarms
 - DFRobot Capacitive Soil Moisture Sensor SEN0308
-- ViparSpectra P1000 Grow-Light
-  - 230-V-Zuleitung über 3,3-V-Relaismodul geschaltet
-  - Dimmung über Optokoppler **PC817** an einem 0–10-V-Stromeingang
-- Home Assistant mit MQTT
+- ViparSpectra P1000 Grow Light
+  - 230 V supply switched via 3.3 V relay module
+  - dimming via a variable resistance between `Dim+` and `Dim-`
+- AD5263BRUZ50 (on TSSOP-24 adapter) as digitally controlled resistance
+- Home Assistant with MQTT
 
-## Projektüberblick für neue Nutzer
+## Project Overview For New Users
 
-Wenn du das Projekt zum ersten Mal siehst, beginne am besten in dieser Reihenfolge:
+If you are seeing the project for the first time, the recommended reading order is:
 
-1. **Schaltplan im Projektordner** ansehen
-2. `SPEC.md` lesen – fachliche Anforderungen
-3. `MODULES.md` lesen – technische Struktur
-4. `entity-model.md` lesen – Home-Assistant-Entities
-5. `libraries.txt` lesen – benötigte Bibliotheken
+1. Review the **schematic in the project folder**
+2. Read `SPEC.md` – functional requirements
+3. Read `MODULES.md` – technical structure
+4. Read `docs/entity-model.md` – Home Assistant entities
+5. Read `ROADMAP.md` – open validation and follow-up work
+6. Read `DECISIONS.md` – design rationale and major decisions
+7. Read `libraries.txt` – required libraries
 
-Der Schaltplan im Projektordner ist die Primärreferenz für die Verdrahtung.
-Diese README ergänzt den Schaltplan um kurze textliche Erklärungen.
+The schematic in the project folder is the primary wiring reference.
+This README adds short textual explanations to the schematic.
 
-## Pinbelegung
+## Pin Assignment
 
 - SHT Alert: `7`
 - RTC SQW/INT: `10`
 - Fan Switch: `2`
 - Fan Tach: `A1`
-- Light PWM: `4`
 - Light Power Relay: `3`
+- Light Dim SHDN: `4`
+- Light Dimmer (AD5263): `I²C` via `SDA/SCL`
 - Soil Moisture: `A0`
 
-## Wichtige Hardware-Hinweise
+## Important Hardware Notes
 
 ### 1. RTC + EEPROM
 
-Das RTC-Modul stellt zwei Funktionen bereit:
+The RTC module provides two functions:
 
-- **DS3231** als präzise RTC
-- **AT24C32** als externes I²C-EEPROM für persistente Konfiguration
+- **DS3231** as precise RTC
+- **AT24C32** as external I²C EEPROM for persistent configuration
 
-Die Firmware nutzt:
+The firmware uses:
 
-- RTClib für die DS3231
-- **JC_EEPROM** für den Zugriff auf das AT24C32-EEPROM (benötigt **Streaming** https://github.com/janelia-arduino/Streaming)
+- RTClib for the DS3231
+- **JC_EEPROM** for access to the AT24C32 EEPROM (requires **Streaming** https://github.com/janelia-arduino/Streaming)
 
-Zusätzlich wird der **SQW/INT-Ausgang** der DS3231 für den Arduino-internen Lichtzeitplan genutzt.
+The **SQW/INT output** of the DS3231 is also used for the Arduino-internal light schedule.
 
-### 2. RTC-Alarmleitung
+### 2. Light Dimmer (AD5263BRUZ50)
 
-- DS3231 `SQW/INT` an Arduino-Pin `10`
-- Arduino-Seite mit `INPUT_PULLUP`
-- falls der reale Aufbau störanfällig ist, kann zusätzlich ein externer 10-kΩ-Pull-up auf 3,3 V verwendet werden
+The grow light is dimmed via an `AD5263BRUZ50` as a digitally adjustable resistance between `Dim+` and `Dim-`.
 
-### 3. Licht-Dimmer (RC + PC817)
+Hardware summary:
 
-Der PWM-Ausgang wird über ein RC-/Optokoppler-Netzwerk geglättet bzw. an den Lichteingang angepasst:
+- `AD5263BRUZ50` on TSSOP-24 adapter
+- two AD5263 channels in series for approximately `0..100 kΩ`
+- low effective resistance = low brightness, high effective resistance = high brightness
+- no galvanic isolation in the dimmer path
+- hard switching of the 230 V supply remains the relay's responsibility
 
-- `PIN_LIGHT_PWM` → 1 kΩ → Knoten
-- Knoten → 0,1 µF gegen GND
-- Knoten → 330 Ω → PC817 Eingang (+)
-- PC817 Eingang (−) → GND
+Pin summary:
 
-### 4. Hartes Licht-Aus
+- Light Power Relay: Pin `3`
+- Light Dim `SHDN`: Pin `4` with external `10 kΩ` pull-down
+- Light Dimmer: I²C via `SDA/SCL`, address `0x2C`
 
-Die 230-V-Zuleitung des Licht-Netzteils wird über ein **3,3-V-Relaismodul mit Optokoppler** geschaltet.
-Im Code bleibt das konzeptionell ein separater „hard power off“-Pfad.
+The exact AD5263 wiring, RDAC mapping, boot sequence, and fault/readback strategy are documented in `SPEC.md` and `MODULES.md`.
 
-### 5. Lüfter-Tacho-Signalaufbereitung
+### 3. Fan Tach Signal Conditioning
 
-Das Lüfter-Tachosignal wird über eine **2N3904-Transistorstufe** auf 3,3-V-Logik für den Nano 33 IoT umgesetzt:
+The fan tach signal is converted to 3.3 V logic for the Nano 33 IoT through a **2N3904 transistor stage**:
 
-- Lüfter-Tacho mit 10 kΩ auf 9 V pull-up
-- Tacho über 47 kΩ an die Basis eines 2N3904
-- 100 kΩ von Basis nach GND
-- Emitter an GND
-- Collector an `A1`
-- 10 kΩ Pull-up vom Collector auf 3,3 V
+- fan tach with 10 kΩ pull-up to 9 V
+- tach through 47 kΩ to the base of a 2N3904
+- 100 kΩ from base to GND
+- emitter to GND
+- collector to `A1`
+- 10 kΩ pull-up from collector to 3.3 V
 
-Das resultierende Signal ist invertiert; die Firmware berücksichtigt das über die gewählte Interrupt-Flanke.
+The resulting signal is inverted; the firmware accounts for this through the selected interrupt edge.
 
-## Wichtige Bibliotheken
+## Important Libraries
 
-Siehe `libraries.txt`.
+See `libraries.txt`.
 
-## Wichtige Doku-Dateien
+## Important Documentation Files
 
-- `SPEC.md` – fachliche Anforderungsliste
-- `MODULES.md` – technische Modulspezifikation
-- `AGENTS.md` – Arbeitsregeln für Codex / KI-Agenten
-- `entity-model.md` – Home-Assistant-Entity-Modell
-- `Credentials.example.h` – Vorlage für die lokalen Zugangsdaten
+- `SPEC.md` – functional requirements list
+- `MODULES.md` – technical module specification
+- `AGENTS.md` – working rules for Codex / AI agents
+- `docs/entity-model.md` – Home Assistant entity model
+- `ROADMAP.md` – open validation and follow-up work
+- `DECISIONS.md` – design decisions and rationale
+- `Credentials.example.h` – template for local credentials
 
-## Nutzung mit Arduino IDE
+## Use With Arduino IDE
 
-Das Projekt ist bewusst als klassischer Arduino-Sketchordner gedacht:
+The project is intentionally structured as a classic Arduino sketch folder:
 
-- `Smaeenhouse.ino`
-- alle `.h/.cpp` im gleichen Ordner
-- keine PlatformIO-Pflicht
+- `Smaeenhouse/Smaeenhouse.ino`
+- all `.h/.cpp` files in the `Smaeenhouse/` folder
+- no PlatformIO requirement
 
-Unter `module-sketches/` liegen zusätzliche Test-Sketche, mit denen sich einzelne
-Module getrennt auf dem Board prüfen lassen.
+Additional test sketches are located under `module-sketches/`; they allow individual modules to be tested separately on the board.
 
 ## Credentials
 
-Lege lokal eine Datei `Credentials.h` an, basierend auf `Credentials.example.h`.
+Create a local `Credentials.h` file based on `Credentials.example.h`.
 
-**Wichtig:** `Credentials.h` darf nicht ins Repository committed werden.
+**Important:** `Credentials.h` must not be committed to the repository.
 
-## Persistenz
+## Persistence
 
-Persistente Konfiguration wird im **AT24C32-EEPROM** des RTC-Moduls gespeichert.
-Der Zugriff erfolgt über die Bibliothek **JC_EEPROM**.
+Persistent configuration is stored in the **AT24C32 EEPROM** of the RTC module.
+Access is performed through the **JC_EEPROM** library.
 
-## Bodenfeuchte-Kalibrierung
+In addition, a small `Light Resume State` is planned so the target state can be reconstructed consistently after restarts.
 
-Die Firmware verwaltet keinen Kalibrierungsassistenten und keine interne
-Kalibrierungs-State-Machine. Home Assistant orchestriert den Ablauf.
+## Time Synchronization And Light Schedule
 
-Die Firmware stellt dafür nur diese Schnittstellen bereit:
+Time is synchronized via NTP:
 
-- periodisches Lesen des Bodenfeuchte-Rohwerts
-- periodische Berechnung der Bodenfeuchte in Prozent
+- during boot
+- at least once per day afterwards
+
+After that, the **DS3231** serves as the local time base.
+
+The Arduino-internal light schedule is mirrored into the two DS3231 alarm registers.
+Alarm events are reported to the Arduino through the SQW/INT output.
+
+## Soil Moisture Calibration
+
+The firmware does not manage a calibration wizard and does not contain an internal calibration state machine. Home Assistant orchestrates the workflow.
+
+The firmware only provides these interfaces:
+
+- periodic reading of the soil moisture raw value
+- periodic calculation of soil moisture percent
 - `sensor.soil_moisture_raw`
 - `sensor.soil_moisture_percent`
 - `button.read_soil_raw_value`
-- persistente Konfigurationswerte `number.soil_air`, `number.soil_water` und `number.soil_depth_mm`
+- persistent configuration values `number.soil_air`, `number.soil_water`, and `number.soil_depth_mm`
 
-Für die internen ADC-Rohwerte darf die Firmware defensiv den 12-bit-Bereich
-0..4095 verwenden. Die persistenten HA-Kalibrierwerte `soil_air` und
-`soil_water` bleiben davon getrennt im erwarteten Projektbereich 0..1000 mit
-Schrittweite 1; reale Luftwerte werden unter ca. 900 erwartet.
+For internal ADC raw values, the firmware may defensively use the 12-bit range `0..4095`. The persistent HA calibration values `soil_air` and `soil_water` remain separate in the expected project range `0..1000` with step `1`.
 
-Der vorgesehene Ablauf ist:
+The intended workflow is:
 
-1. Für den Luftwert liegt der Sensor trocken in Luft. HA ruft `button.read_soil_raw_value` auf, wartet kurz auf den aktualisierten Wert von `sensor.soil_moisture_raw` und schreibt ihn nach `number.soil_air`.
-2. Für den Wasserwert liegt der Sensor bei der Referenztiefe von 120 mm in Wasser. HA ruft wieder `button.read_soil_raw_value` auf, wartet auf `sensor.soil_moisture_raw` und schreibt ihn nach `number.soil_water`.
-3. Die reale Einstecktiefe im Substrat wird manuell in `number.soil_depth_mm` eingetragen.
+1. For the air value, the sensor is dry in air. HA calls `button.read_soil_raw_value`, waits for the updated value of `sensor.soil_moisture_raw`, and writes it to `number.soil_air`.
+2. For the water value, the sensor is in water at the reference depth of `120 mm`. HA calls `button.read_soil_raw_value` again, waits for `sensor.soil_moisture_raw`, and writes it to `number.soil_water`.
+3. The actual insertion depth in the substrate is entered manually in `number.soil_depth_mm`.
 
-Separate Firmware-Buttons wie `capture_soil_air` oder `capture_soil_water`
-sollen nicht ergänzt werden. Der generische Raw-Read-Button plus HA-Scripts oder
-HA-Automationen reicht aus und vermeidet zusätzliche MQTT-Entities.
+Separate firmware buttons such as `capture_soil_air` or `capture_soil_water` should not be added.
 
-`soil_depth_mm` ist ein aktiver Korrekturparameter. Die Firmware verwendet eine
-lineare Tiefenkorrektur mit `SOIL_REFERENCE_DEPTH_MM = 120`, weil die
-Sensorantwort davon abhängt, wie viel aktive Sensorfläche im Medium steckt.
-Konzeptionell gilt:
+`soil_depth_mm` is an active correction parameter. The firmware uses a linear depth correction with `SOIL_REFERENCE_DEPTH_MM = 120`:
 
 ```text
 depth_factor = soil_depth_mm / SOIL_REFERENCE_DEPTH_MM
 percent = (soil_air - raw) / ((soil_air - soil_water) * depth_factor) * 100
 ```
 
-Der Luftreferenzwert entspricht 0 %, der Wasserreferenzwert bei 120 mm
-entspricht 100 %. Gültige Ergebnisse werden auf 0..100 % begrenzt. Werte unter
-20 mm gelten für die Prozentberechnung als ungültig, weil die erste physische
-Sensormarkierung bei 20 mm liegt; der Rohwert darf weiter publiziert werden.
-Die lineare Korrektur ist eine bewusste Näherung. Es gibt eine Messreihe, das
-Projekt akzeptiert dieses Modell derzeit aber als ausreichend genau.
-
-## Zeitsynchronisation und Lichtzeitplan
-
-Die Zeit wird per NTP synchronisiert:
-
-- beim Boot
-- danach mindestens einmal pro Tag
-
-Danach dient die **DS3231** als lokale Zeitbasis.
-
-Der Arduino-interne Lichtzeitplan wird in die beiden DS3231-Alarmregister gespiegelt.
-Die Alarmereignisse werden über den SQW/INT-Ausgang an den Arduino gemeldet.
+The air reference corresponds to `0 %`, and the water reference at `120 mm` corresponds to `100 %`. Valid results are constrained to `0..100 %`. If `soil_depth_mm < 20`, the percent value is invalid/unavailable; the raw value may continue to be published.
 
 ## Home Assistant
 
-Die MQTT-/HA-Integration basiert auf:
+The MQTT/HA integration is based on:
 
-- Arduino Home Assistant Integration von Dawid Chyrzynski
+- Arduino Home Assistant Integration by Dawid Chyrzynski
   https://github.com/dawidchyrzynski/arduino-home-assistant
 
-Weitere Details stehen in `entity-model.md`.
+Further details are documented in `docs/entity-model.md`.
 
-## Offene Probleme
+## Project Status And Roadmap
 
-- **Licht-Dimmung über den Sosen-Treiber ist noch nicht final gelöst.** Der dokumentierte RC-/PC817-Ansatz bildet den erwarteten Widerstands-/Stromsenken-Eingang des Treibers bisher nicht zuverlässig nach.
-- **Die endgültige Hardwarestrategie für die Dimmung ist offen.** Wahrscheinlich wird ein Widerstands-Stufennetzwerk oder eine andere robuste, zum Treiber passende Lösung nötig.
-- **Das Home-Assistant-Frontend ist noch nicht umgesetzt.** Zeitdarstellung, HA-Scripts/Automationen für den dokumentierten Bodenfeuchte-Kalibrierungsablauf und bedingte Sichtbarkeit im Dashboard fehlen noch als Umsetzung.
-- **Die von Codex erzeugte Firmware muss weiter gegen die aktuelle Dokumentation geprüft werden.** Besonders wichtig bleiben RTC-Alarm-Logik, Persistenz, HA-Entities und das Zusammenspiel zwischen Arduino-Auto-Mode und HA-Steuerung.
-- **Der reale Aufbau muss weiter hardwareseitig validiert werden.** Dazu gehören insbesondere Dimmverhalten, Versorgungskonzept und das Verhalten im Offline-Fallback.
-
-## Roadmap
-
-1. **Dimmkonzept finalisieren**
-   - den Eingang des Sosen-Treibers mit einer robusten Lösung ansteuern
-   - dokumentieren, welche Hardwarevariante endgültig verwendet wird
-
-2. **Firmware gegen die aktuelle Spezifikation nachziehen**
-   - Codex gezielt gegen `SPEC.md`, `MODULES.md` und `entity-model.md` patchen lassen
-   - bestehende Inkonsistenzen im Code beseitigen
-
-3. **Home-Assistant-Frontend-Konzept ergänzen**
-   - Zeitdarstellung für `light_on_time` / `light_off_time`
-   - HA-Scripts/Automationen für den dokumentierten Bodenfeuchte-Kalibrierungsablauf
-   - Dashboard-Layout mit bedingter Sichtbarkeit je nach Modus und Bedienbarkeit
-
-4. **HA-Dashboard und Automationen umsetzen**
-   - Helpers, Templates, Scripts und Karten definieren
-   - Scheduler-Integration für den HA-Dimmauftrag vervollständigen
-
-5. **Gesamtsystem im realen Aufbau testen**
-   - Schaltverhalten, Sensorik, RPM, RTC-Alarme und Persistenz prüfen
-   - Verhalten bei WLAN-/MQTT-Ausfall validieren
-
-6. **Dokumentation und Code synchron halten**
-   - nach jeder größeren Hardware- oder Logikänderung zuerst die Anforderungen aktualisieren
-   - anschließend Codex per Patch-/Review-Workflow auf den bestehenden Code ansetzen
+Current open tasks and validation steps are tracked in `ROADMAP.md`.
+Important design decisions are recorded in `DECISIONS.md`.

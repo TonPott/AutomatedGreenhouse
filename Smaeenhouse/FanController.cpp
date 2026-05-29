@@ -38,12 +38,17 @@ void FanController::update(uint32_t nowMs) {
     effectiveState_ = desiredState;
     digitalWrite(PIN_FAN_SWITCH, effectiveState_ ? HIGH : LOW);
 
-    if (!effectiveState_) {
+    if (effectiveState_) {
+      runningSinceMs_ = nowMs;
+      fault_ = false;
+    } else {
       rpm_ = 0;
+      fault_ = false;
       noInterrupts();
       tachPulseCount_ = 0;
       interrupts();
       lastRpmCalcMs_ = nowMs;
+      runningSinceMs_ = 0;
     }
   }
 
@@ -65,6 +70,12 @@ void FanController::update(uint32_t nowMs) {
   // 2 pulses per revolution.
   rpm_ = static_cast<uint16_t>((pulses * 60000UL) / (2UL * elapsed));
   lastRpmCalcMs_ = nowMs;
+
+  if (pulses > 0 || rpm_ > 0) {
+    fault_ = false;
+  } else if ((nowMs - runningSinceMs_) >= FAN_FAULT_GRACE_MS) {
+    fault_ = true;
+  }
 }
 
 void FanController::setAutoMode(bool enabled) {
@@ -89,6 +100,10 @@ bool FanController::getManualState() const {
 
 bool FanController::isOn() const {
   return effectiveState_;
+}
+
+bool FanController::hasFault() const {
+  return fault_;
 }
 
 uint16_t FanController::getRPM() const {

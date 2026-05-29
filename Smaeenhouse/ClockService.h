@@ -20,10 +20,12 @@ public:
   bool hasPendingAlarmEvent() const;
 
   DateTime now();
+  uint32_t currentEpoch();
   uint16_t minutesSinceMidnight();
 
   bool isTimeValid() const;
   bool isRtcAvailable() const;
+  bool hasFault() const;
 
 private:
   bool fetchNtpUnixTime(uint32_t& unixTimeUtc);
