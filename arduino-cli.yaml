@@ -1,0 +1,14 @@
+# arduino-cli.yaml
+#
+# Repository scripts generate .local/arduino-cli.yaml with shared toolchain
+# directories. Keep this file limited to project-wide Arduino CLI settings.
+
+board_manager:
+  additional_urls: []
+
+library:
+  enable_unsafe_install: false
+
+logging:
+  level: info
+  format: text
