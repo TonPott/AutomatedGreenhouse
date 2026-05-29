@@ -39,7 +39,9 @@ If you are seeing the project for the first time, the recommended reading order 
 2. Read `SPEC.md` – functional requirements
 3. Read `MODULES.md` – technical structure
 4. Read `docs/entity-model.md` – Home Assistant entities
-5. Read `libraries.txt` – required libraries
+5. Read `ROADMAP.md` – open validation and follow-up work
+6. Read `DECISIONS.md` – design rationale and major decisions
+7. Read `libraries.txt` – required libraries
 
 The schematic in the project folder is the primary wiring reference.
 This README adds short textual explanations to the schematic.
@@ -73,7 +75,7 @@ The **SQW/INT output** of the DS3231 is also used for the Arduino-internal light
 
 ### 2. Light Dimmer (AD5263BRUZ50)
 
-The old PWM/RC/PC817 dimmer path is no longer the target concept in this branch. Instead, the grow light is dimmed via an `AD5263BRUZ50` as a digitally adjustable resistance between `Dim+` and `Dim-`.
+The grow light is dimmed via an `AD5263BRUZ50` as a digitally adjustable resistance between `Dim+` and `Dim-`.
 
 Hardware summary:
 
@@ -114,6 +116,8 @@ See `libraries.txt`.
 - `MODULES.md` – technical module specification
 - `AGENTS.md` – working rules for Codex / AI agents
 - `docs/entity-model.md` – Home Assistant entity model
+- `ROADMAP.md` – open validation and follow-up work
+- `DECISIONS.md` – design decisions and rationale
 - `Credentials.example.h` – template for local credentials
 
 ## Use With Arduino IDE
@@ -192,15 +196,7 @@ The MQTT/HA integration is based on:
 
 Further details are documented in `docs/entity-model.md`.
 
-## Open Issues
+## Project Status And Roadmap
 
-- The final firmware implementation still needs to be fully verified against this AD5263 specification.
-- The real hardware build must be validated, especially mapping, limits, SHDN behavior, and fault response.
-- HA scripts/automations for the documented soil moisture calibration workflow still need to be implemented in the Home Assistant setup.
-
-## Roadmap
-
-1. Verify AD5263 mapping and dimmer limits in the real hardware build
-2. Complete firmware alignment for resume-state and fault strategy
-3. Add HA automations for `button.read_soil_raw_value` and writing to `number.soil_air` / `number.soil_water`
-4. Perform end-to-end tests for boot sequence, restart recovery, and fault paths
+Current open tasks and validation steps are tracked in `ROADMAP.md`.
+Important design decisions are recorded in `DECISIONS.md`.

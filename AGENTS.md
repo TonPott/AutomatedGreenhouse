@@ -21,6 +21,8 @@ The repository is in a migration phase based on existing firmware.
   - `SPEC.md`
   - `MODULES.md`
   - `docs/entity-model.md`
+- For open work and validation tasks, consult `ROADMAP.md`.
+- For rationale behind major hardware, module, or design changes, consult `DECISIONS.md`.
 - If existing code and current documentation contradict each other, the current documentation takes precedence.
 - Persistence is extended deliberately without creating existing configuration values a second time.
 - Resume state and fault states are part of the mandatory migration scope.
@@ -113,6 +115,8 @@ Before larger code changes:
 - consider `SPEC.md`
 - consider `MODULES.md`
 - consider `docs/entity-model.md`
+- check `ROADMAP.md` for open validation or follow-up items
+- check `DECISIONS.md` for rationale behind major design choices
 - consider the existing schematic in the project folder
 
 ### 14. Use SHTa Routines
@@ -125,6 +129,8 @@ Before larger code changes:
 - Text documentation should also describe signal conditioning for:
   - light dimmer (AD5263 resistance path between `Dim+` and `Dim-`)
   - fan tachometer (2N3904 stage)
+- Do not duplicate roadmap items into README/SPEC/MODULES unless they are actual current requirements.
+- Keep open tasks in `ROADMAP.md` and historical rationale in `DECISIONS.md`.
 
 If code and documentation contradict each other, documentation comes first, unless the user explicitly says otherwise.
 

@@ -1,4 +1,4 @@
-## Technical Module Specification v4
+## Technical Module Specification
 
 ## 1. Overall Architecture
 
