@@ -2,8 +2,6 @@
 
 This repository contains the firmware and project documentation for a grow controller based on an **Arduino Nano 33 IoT**.
 
-## Goal
-
 The controller manages and monitors:
 
 - temperature and humidity via an **SHT3x**
@@ -15,188 +13,168 @@ The controller manages and monitors:
 
 The system should work with Home Assistant and also continue operating locally and autonomously if the connection is lost.
 
-## Hardware
+## Project Structure
 
-- Arduino Nano 33 IoT
-- Temperature and Humidity Sensor CQrobot CQRSHT31FA (Sensirion SHT31-DIS-F, I²C + alert pin)
-- 3-pin 12V PC fan
-- WINGONEER Tiny DS3231 AT24C32 I2C module
-  - RTC: **DS3231**
-  - external EEPROM: **AT24C32**
-  - SQW/INT output for RTC alarms
-- DFRobot Capacitive Soil Moisture Sensor SEN0308
-- ViparSpectra P1000 Grow Light
-  - 230 V supply switched via 3.3 V relay module
-  - dimming via a variable resistance between `Dim+` and `Dim-`
-- AD5263BRUZ50 (on TSSOP-24 adapter) as digitally controlled resistance
-- Home Assistant with MQTT
+```text
+.
+|-- AGENTS.md
+|-- README.md
+|-- SPEC.md
+|-- MODULES.md
+|-- HARDWARE.md
+|-- ROADMAP.md
+|-- DECISIONS.md
+|-- libraries.txt
+|-- arduino-cli.yaml
+|-- sketches/
+|   `-- Smaeenhouse/
+|       |-- Smaeenhouse.ino
+|       |-- sketch.yaml
+|       |-- Credentials.example.h
+|       `-- *.h / *.cpp
+|-- hardware-tests/
+|   |-- README.md
+|   `-- <test-sketch>/
+|-- scripts/
+|   |-- setup-arduino.*
+|   |-- check-arduino.*
+|   |-- cleanup-worktree.*
+|   `-- cleanup-arduino-toolchain.*
+`-- .github/workflows/arduino-compile.yml
+```
+
+The project remains Arduino-IDE-compatible. Open `sketches/Smaeenhouse/Smaeenhouse.ino` in the Arduino IDE.
 
 ## Project Overview For New Users
 
-If you are seeing the project for the first time, the recommended reading order is:
+Recommended reading order:
 
-1. Review the **schematic in the project folder**
-2. Read `SPEC.md` – functional requirements
-3. Read `MODULES.md` – technical structure
-4. Read `docs/entity-model.md` – Home Assistant entities
-5. Read `ROADMAP.md` – open validation and follow-up work
-6. Read `DECISIONS.md` – design rationale and major decisions
-7. Read `libraries.txt` – required libraries
+1. Review the **schematic in the project folder** (`FullArduinoHouse.fzz`)
+2. Read `SPEC.md` for functional requirements
+3. Read `HARDWARE.md` for board, wiring, signal levels, and safety notes
+4. Read `MODULES.md` for technical structure
+5. Read `docs/entity-model.md` for Home Assistant entities
+6. Read `ROADMAP.md` for open validation and follow-up work
+7. Read `DECISIONS.md` for design rationale and major decisions
+8. Read `libraries.txt` for required Arduino libraries
 
-The schematic in the project folder is the primary wiring reference.
-This README adds short textual explanations to the schematic.
+The schematic in the project folder is the primary wiring reference. Text documentation adds explanatory context for review and maintenance.
 
-## Pin Assignment
+## Setup
 
-- SHT Alert: `7`
-- RTC SQW/INT: `10`
-- Fan Switch: `2`
-- Fan Tach: `A1`
-- Light Power Relay: `3`
-- Light Dim SHDN: `4`
-- Light Dimmer (AD5263): `I²C` via `SDA/SCL`
-- Soil Moisture: `A0`
+Arduino CLI setup is a one-time preparation per local machine. The setup scripts may update Arduino indexes, install the board core, and prepare libraries.
 
-## Important Hardware Notes
+Windows:
 
-### 1. RTC + EEPROM
+```powershell
+.\scripts\setup-arduino.ps1
+```
 
-The RTC module provides two functions:
+Linux / Codex Cloud / GitHub Actions:
 
-- **DS3231** as precise RTC
-- **AT24C32** as external I²C EEPROM for persistent configuration
+```bash
+./scripts/setup-arduino.sh
+```
 
-The firmware uses:
+By default, all worktrees of this repository use a shared Arduino home:
 
-- RTClib for the DS3231
-- **JC_EEPROM** for access to the AT24C32 EEPROM (requires **Streaming** https://github.com/janelia-arduino/Streaming)
+- Windows: `%LOCALAPPDATA%\ArduinoCodex\<repo-name>\arduino-cli`
+- Linux/macOS: `$HOME/.cache/arduino-codex/<repo-name>/arduino-cli`
 
-The **SQW/INT output** of the DS3231 is also used for the Arduino-internal light schedule.
+Set `ARDUINO_PROJECT_HOME` to use a different toolchain location.
 
-### 2. Light Dimmer (AD5263BRUZ50)
+## Compile Check
 
-The grow light is dimmed via an `AD5263BRUZ50` as a digitally adjustable resistance between `Dim+` and `Dim-`.
+Compile checks do not install anything. They generate an ignored local Arduino CLI configuration under `.local/arduino-cli.yaml`, use the shared toolchain, and write build output to `.build/`.
 
-Hardware summary:
+Windows:
 
-- `AD5263BRUZ50` on TSSOP-24 adapter
-- two AD5263 channels in series for approximately `0..100 kΩ`
-- low effective resistance = low brightness, high effective resistance = high brightness
-- no galvanic isolation in the dimmer path
-- hard switching of the 230 V supply remains the relay's responsibility
+```powershell
+.\scripts\check-arduino.ps1
+```
 
-Pin summary:
+Linux / Codex Cloud / GitHub Actions:
 
-- Light Power Relay: Pin `3`
-- Light Dim `SHDN`: Pin `4` with external `10 kΩ` pull-down
-- Light Dimmer: I²C via `SDA/SCL`, address `0x2C`
+```bash
+./scripts/check-arduino.sh
+```
 
-The exact AD5263 wiring, RDAC mapping, boot sequence, and fault/readback strategy are documented in `SPEC.md` and `MODULES.md`.
+The default sketch is `sketches/Smaeenhouse`. The default profile is `nano33iot`.
 
-### 3. Fan Tach Signal Conditioning
+Hardware test example:
 
-The fan tach signal is converted to 3.3 V logic for the Nano 33 IoT through a **2N3904 transistor stage**:
+```powershell
+$env:SKETCH = "hardware-tests/AD5263Test"
+.\scripts\check-arduino.ps1
+```
 
-- fan tach with 10 kΩ pull-up to 9 V
-- tach through 47 kΩ to the base of a 2N3904
-- 100 kΩ from base to GND
-- emitter to GND
-- collector to `A1`
-- 10 kΩ pull-up from collector to 3.3 V
+```bash
+SKETCH=hardware-tests/AD5263Test ./scripts/check-arduino.sh
+```
 
-The resulting signal is inverted; the firmware accounts for this through the selected interrupt edge.
-
-## Important Libraries
-
-See `libraries.txt`.
-
-## Important Documentation Files
-
-- `SPEC.md` – functional requirements list
-- `MODULES.md` – technical module specification
-- `AGENTS.md` – working rules for Codex / AI agents
-- `docs/entity-model.md` – Home Assistant entity model
-- `ROADMAP.md` – open validation and follow-up work
-- `DECISIONS.md` – design decisions and rationale
-- `Credentials.example.h` – template for local credentials
-
-## Use With Arduino IDE
-
-The project is intentionally structured as a classic Arduino sketch folder:
-
-- `Smaeenhouse/Smaeenhouse.ino`
-- all `.h/.cpp` files in the `Smaeenhouse/` folder
-- no PlatformIO requirement
-
-Additional test sketches are located under `module-sketches/`; they allow individual modules to be tested separately on the board.
+If the compile check reports that the Arduino toolchain is not prepared, run the matching setup script once and retry.
 
 ## Credentials
 
-Create a local `Credentials.h` file based on `Credentials.example.h`.
+Create a local `sketches/Smaeenhouse/Credentials.h` file based on `sketches/Smaeenhouse/Credentials.example.h`.
 
-**Important:** `Credentials.h` must not be committed to the repository.
+**Important:** `Credentials.h` must not be committed to the repository. The check scripts temporarily copy `Credentials.example.h` only when no real credentials file exists, and remove that temporary file after compilation.
 
-## Persistence
+For hardware-test compile checks that include credential-dependent modules, the scripts may temporarily copy the production example credentials into the selected test sketch folder. Real hardware uploads should use real local credentials, never committed credentials.
 
-Persistent configuration is stored in the **AT24C32 EEPROM** of the RTC module.
-Access is performed through the **JC_EEPROM** library.
+## Cleanup
 
-In addition, a small `Light Resume State` is planned so the target state can be reconstructed consistently after restarts.
+Worktree-local generated files can be removed with:
 
-## Time Synchronization And Light Schedule
-
-Time is synchronized via NTP:
-
-- during boot
-- at least once per day afterwards
-
-After that, the **DS3231** serves as the local time base.
-
-The Arduino-internal light schedule is mirrored into the two DS3231 alarm registers.
-Alarm events are reported to the Arduino through the SQW/INT output.
-
-## Soil Moisture Calibration
-
-The firmware does not manage a calibration wizard and does not contain an internal calibration state machine. Home Assistant orchestrates the workflow.
-
-The firmware only provides these interfaces:
-
-- periodic reading of the soil moisture raw value
-- periodic calculation of soil moisture percent
-- `sensor.soil_moisture_raw`
-- `sensor.soil_moisture_percent`
-- `button.read_soil_raw_value`
-- persistent configuration values `number.soil_air`, `number.soil_water`, and `number.soil_depth_mm`
-
-For internal ADC raw values, the firmware may defensively use the 12-bit range `0..4095`. The persistent HA calibration values `soil_air` and `soil_water` remain separate in the expected project range `0..1000` with step `1`.
-
-The intended workflow is:
-
-1. For the air value, the sensor is dry in air. HA calls `button.read_soil_raw_value`, waits for the updated value of `sensor.soil_moisture_raw`, and writes it to `number.soil_air`.
-2. For the water value, the sensor is in water at the reference depth of `120 mm`. HA calls `button.read_soil_raw_value` again, waits for `sensor.soil_moisture_raw`, and writes it to `number.soil_water`.
-3. The actual insertion depth in the substrate is entered manually in `number.soil_depth_mm`.
-
-Separate firmware buttons such as `capture_soil_air` or `capture_soil_water` should not be added.
-
-`soil_depth_mm` is an active correction parameter. The firmware uses a linear depth correction with `SOIL_REFERENCE_DEPTH_MM = 120`:
-
-```text
-depth_factor = soil_depth_mm / SOIL_REFERENCE_DEPTH_MM
-percent = (soil_air - raw) / ((soil_air - soil_water) * depth_factor) * 100
+```powershell
+.\scripts\cleanup-worktree.ps1
 ```
 
-The air reference corresponds to `0 %`, and the water reference at `120 mm` corresponds to `100 %`. Valid results are constrained to `0..100 %`. If `soil_depth_mm < 20`, the percent value is invalid/unavailable; the raw value may continue to be published.
+```bash
+./scripts/cleanup-worktree.sh
+```
+
+These scripts remove `.build/`, `.arduino-cache/`, `.local/`, and `.arduino/` in the current worktree. They do not delete the shared Arduino toolchain.
+
+The shared toolchain is intentionally long-lived. Manual project-end cleanup uses separate scripts that require confirmation:
+
+```powershell
+.\scripts\cleanup-arduino-toolchain.ps1
+```
+
+```bash
+./scripts/cleanup-arduino-toolchain.sh
+```
+
+## Important Hardware Notes
+
+- The RTC module provides a **DS3231** RTC and **AT24C32** EEPROM. The firmware uses RTClib for the RTC and JC_EEPROM for the external EEPROM.
+- The grow light is dimmed through an `AD5263BRUZ50` as a digitally adjustable resistance between `Dim+` and `Dim-`; the relay remains responsible for hard switching the mains supply.
+- The fan tach signal is converted to 3.3 V logic through a **2N3904 transistor stage**. See `HARDWARE.md` for the exact signal-conditioning notes.
+- The **SQW/INT output** of the DS3231 is used for Arduino-internal light schedule alarms.
 
 ## Home Assistant
 
-The MQTT/HA integration is based on:
+The MQTT/HA integration is based on the Arduino Home Assistant Integration by Dawid Chyrzynski:
 
-- Arduino Home Assistant Integration by Dawid Chyrzynski
-  https://github.com/dawidchyrzynski/arduino-home-assistant
+https://github.com/dawidchyrzynski/arduino-home-assistant
 
 Further details are documented in `docs/entity-model.md`.
 
-## Project Status And Roadmap
+## Codex Workflow
 
-Current open tasks and validation steps are tracked in `ROADMAP.md`.
-Important design decisions are recorded in `DECISIONS.md`.
+- Open the repository root in the Codex app, not the sketch folder.
+- Keep changes small and reviewable.
+- After code or build configuration changes, run `scripts/check-arduino`.
+- After documentation-only changes, a diff review is sufficient.
+- Do not commit generated build artifacts.
+- Run hardware tests and uploads to real boards locally.
+
+Recommended local Codex actions:
+
+```text
+Arduino Setup   -> .\scripts\setup-arduino.ps1
+Arduino Compile -> .\scripts\check-arduino.ps1
+```
+
+Current open tasks and validation steps are tracked in `ROADMAP.md`. Important design decisions are recorded in `DECISIONS.md`.

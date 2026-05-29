@@ -1,0 +1,29 @@
+name: Arduino Compile
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  compile:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Arduino CLI
+        uses: arduino/setup-arduino-cli@v2
+        with:
+          version: "1.x"
+
+      - name: Setup Arduino
+        run: |
+          chmod +x scripts/setup-arduino.sh
+          ./scripts/setup-arduino.sh
+
+      - name: Compile
+        run: |
+          chmod +x scripts/check-arduino.sh
+          ./scripts/check-arduino.sh

@@ -5,6 +5,7 @@ This file tracks open work, next steps, validation needs, and optional improveme
 ## Immediate Validation
 
 - Run an Arduino IDE compile/build check for the main sketch.
+- Verify the repository script compile path with `scripts/check-arduino`.
 - Run or verify the AD5263 bench test sketch after the corrected mapping.
 - Verify that the current code and documentation stay aligned before merging.
 

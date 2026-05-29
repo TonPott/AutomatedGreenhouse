@@ -2,23 +2,23 @@
 
 ## 1. Overall Architecture
 
-The project is structured as an Arduino sketch folder with `.ino`, `.h`, and `.cpp` files.
-The main sketch is located at `Smaeenhouse/Smaeenhouse.ino`; the related module and configuration files are located in the `Smaeenhouse/` folder.
+The project is structured as an Arduino sketch under `sketches/Smaeenhouse/` with `.ino`, `.h`, and `.cpp` files.
+The main sketch is located at `sketches/Smaeenhouse/Smaeenhouse.ino`; the related module and configuration files are located in the `sketches/Smaeenhouse/` folder.
 
 Recommended files:
 
-- `Smaeenhouse/Smaeenhouse.ino`
-- `Smaeenhouse/Config.h`
-- `Smaeenhouse/Credentials.h` (local, do not commit to the repository)
-- `Smaeenhouse/PersistentConfig.h/.cpp`
-- `Smaeenhouse/RtcEepromStorage.h/.cpp`
-- `Smaeenhouse/SHTa.h/.cpp`
-- `Smaeenhouse/FanController.h/.cpp`
-- `Smaeenhouse/LightController.h/.cpp`
-- `Smaeenhouse/MoistureSensor.h/.cpp`
-- `Smaeenhouse/ClockService.h/.cpp`
-- `Smaeenhouse/NetworkManager.h/.cpp`
-- `Smaeenhouse/HAInterface.h/.cpp`
+- `sketches/Smaeenhouse/Smaeenhouse.ino`
+- `sketches/Smaeenhouse/Config.h`
+- `sketches/Smaeenhouse/Credentials.h` (local, do not commit to the repository)
+- `sketches/Smaeenhouse/PersistentConfig.h/.cpp`
+- `sketches/Smaeenhouse/RtcEepromStorage.h/.cpp`
+- `sketches/Smaeenhouse/SHTa.h/.cpp`
+- `sketches/Smaeenhouse/FanController.h/.cpp`
+- `sketches/Smaeenhouse/LightController.h/.cpp`
+- `sketches/Smaeenhouse/MoistureSensor.h/.cpp`
+- `sketches/Smaeenhouse/ClockService.h/.cpp`
+- `sketches/Smaeenhouse/NetworkManager.h/.cpp`
+- `sketches/Smaeenhouse/HAInterface.h/.cpp`
 
 ### Basic Principle
 Each module should preferably have this structure:

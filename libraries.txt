@@ -1,37 +1,53 @@
-Install these libraries in the Arduino IDE before compiling the project.
+Install these libraries before compiling the project. The repository setup scripts install the pinned Arduino Library Manager names listed below.
 
-## Core Libraries / Dependencies
+## Board Core
 
-- Sensirion Core https://github.com/Sensirion/arduino-core/
-- Sensirion arduino-i2c-sht3x https://github.com/Sensirion/arduino-i2c-sht3x
-- RTClib https://github.com/adafruit/RTClib
-- WiFiNINA https://docs.arduino.cc/libraries/wifinina/
-- arduino-home-assistant by Dawid Chyrzynski https://github.com/dawidchyrzynski/arduino-home-assistant
+- `arduino:samd`
+  - Target board: Arduino Nano 33 IoT
+  - FQBN: `arduino:samd:nano_33_iot`
 
-## Additional Libraries
+## Required Libraries
 
-- AD5263 by Rob Tillaart https://github.com/RobTillaart/AD5263
-  - For AD5263BRUZ50 dimmer control via I²C.
-  - Note: The library is still in an early/test phase; project-specific adjustments may be required.
+- `Arduino_SpiNINA@0.0.2`
+  - Required by the Nano 33 IoT WiFi stack.
+- `WiFiNINA@2.0.1`
+  - WiFi connectivity for the Nano 33 IoT.
+- `Sensirion Core@0.7.3`
+  - Dependency for Sensirion SHT libraries.
+- `Sensirion I2C SHT3x@1.0.1`
+  - SHT31/SHT3x temperature and humidity sensor support.
+- `Adafruit BusIO@1.17.4`
+  - Required by RTClib for I2C device helpers.
+- `RTClib@2.1.4`
+  - DS3231 RTC and alarm support.
+- `PubSubClient@2.8.0`
+  - MQTT client dependency used by ArduinoHA.
+- `home-assistant-integration@2.1.0`
+  - Home Assistant MQTT integration by Dawid Chyrzynski.
+- `AD5263@0.1.4`
+  - AD5263BRUZ50 dimmer control via I2C.
+  - The library is still in an early/test phase; project-specific adjustments may be required.
   - Project-specific additions or additional library functions may be required for the readback/plausibility checks required by the specification for fault detection.
-
-- JC_EEPROM by Jack Christensen https://github.com/JChristensen/JC_EEPROM
-  - Access to the external **AT24C32 EEPROM** of the
-    WINGONEER Tiny DS3231 AT24C32 I2C module.
+- `JC_EEPROM@1.0.10`
+  - Access to the external **AT24C32 EEPROM** of the WINGONEER Tiny DS3231 AT24C32 I2C module.
   - This library is fixed for the project.
-
-- Streaming by Mikal Hart / Janelia https://github.com/janelia-arduino/Streaming
+- `Streaming@6.3.0`
   - Required by **JC_EEPROM**.
 
 ## Intentionally No Longer Used
 
-- SAMD_SafeFlashStorage
+- `SAMD_SafeFlashStorage`
   - Persistence is no longer stored in the internal flash of the Nano 33 IoT.
 
 ## Notes
 
-- Create local `Credentials.h` from `Credentials.example.h`
-- Do not commit `Credentials.h`
+- Create local `sketches/Smaeenhouse/Credentials.h` from `sketches/Smaeenhouse/Credentials.example.h`.
+- Do not commit `Credentials.h`.
+- When changing dependencies, update all of these together:
+  - `libraries.txt`
+  - `sketches/Smaeenhouse/sketch.yaml`
+  - `scripts/setup-arduino.ps1`
+  - `scripts/setup-arduino.sh`
 - When changing RTC behavior, check availability of the required DS3231 alarm functions in RTClib:
   - `writeSqwPinMode(...)`
   - `setAlarm1(...)`

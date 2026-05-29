@@ -32,9 +32,9 @@ Status: accepted
 
 - `SPEC.md`
 - `MODULES.md`
-- `Smaeenhouse/Config.h`
-- `Smaeenhouse/LightController.*`
-- `module-sketches/AD5263Test/AD5263Test.ino`
+- `sketches/Smaeenhouse/Config.h`
+- `sketches/Smaeenhouse/LightController.*`
+- `hardware-tests/AD5263Test/AD5263Test.ino`
 
 ## 2026-05 – Lamp dimmer direction is low resistance = low brightness, high resistance = high brightness
 
@@ -63,9 +63,9 @@ Status: accepted
 
 - `SPEC.md`
 - `MODULES.md`
-- `Smaeenhouse/Config.h`
-- `Smaeenhouse/LightController.cpp`
-- `module-sketches/AD5263Test/AD5263Test.ino`
+- `sketches/Smaeenhouse/Config.h`
+- `sketches/Smaeenhouse/LightController.cpp`
+- `hardware-tests/AD5263Test/AD5263Test.ino`
 
 ## 2026-05 – Project documentation is maintained in English
 
@@ -148,8 +148,8 @@ Status: accepted
 - `SPEC.md`
 - `MODULES.md`
 - `docs/entity-model.md`
-- `Smaeenhouse/MoistureSensor.*`
-- `Smaeenhouse/HAInterface.*`
+- `sketches/Smaeenhouse/MoistureSensor.*`
+- `sketches/Smaeenhouse/HAInterface.*`
 
 ## 2026-05 – Soil depth correction uses a simple linear model
 
@@ -178,6 +178,6 @@ Status: accepted
 - `SPEC.md`
 - `MODULES.md`
 - `docs/entity-model.md`
-- `Smaeenhouse/Config.h`
-- `Smaeenhouse/MoistureSensor.*`
-- `Smaeenhouse/HAInterface.*`
+- `sketches/Smaeenhouse/Config.h`
+- `sketches/Smaeenhouse/MoistureSensor.*`
+- `sketches/Smaeenhouse/HAInterface.*`

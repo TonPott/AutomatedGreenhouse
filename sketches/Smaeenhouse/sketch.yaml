@@ -1,0 +1,19 @@
+default_profile: nano33iot
+
+profiles:
+  nano33iot:
+    fqbn: arduino:samd:nano_33_iot
+    platforms:
+      - platform: arduino:samd
+    libraries:
+      - Arduino_SpiNINA (0.0.2)
+      - WiFiNINA (2.0.1)
+      - Sensirion Core (0.7.3)
+      - Sensirion I2C SHT3x (1.0.1)
+      - Adafruit BusIO (1.17.4)
+      - RTClib (2.1.4)
+      - PubSubClient (2.8.0)
+      - home-assistant-integration (2.1.0)
+      - AD5263 (0.1.4)
+      - JC_EEPROM (1.0.10)
+      - Streaming (6.3.0)
