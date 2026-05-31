@@ -75,6 +75,7 @@ uint8_t clampPercent(long value) {
 HAInterface::HAInterface(FanController& fanController,
                          LightController& lightController,
                          MoistureSensor& moistureSensor,
+                         LightSensor& lightSensor,
                          ClockService& clockService,
                          SHTa& sht,
                          PersistentConfigManager& configManager,
@@ -83,6 +84,7 @@ HAInterface::HAInterface(FanController& fanController,
     : fanController_(fanController),
       lightController_(lightController),
       moistureSensor_(moistureSensor),
+      lightSensor_(lightSensor),
       clockService_(clockService),
       sht_(sht),
       configManager_(configManager),
@@ -94,6 +96,10 @@ HAInterface::HAInterface(FanController& fanController,
       humiditySensor_("humidity"),
       soilPercentSensor_("soil_moisture_percent"),
       soilRawSensor_("soil_moisture_raw"),
+      cabinetIlluminanceSensor_("cabinet_illuminance_lux"),
+      cabinetFullSpectrumSensor_("cabinet_light_full_spectrum_raw"),
+      cabinetInfraredSensor_("cabinet_light_infrared_raw"),
+      cabinetVisibleSensor_("cabinet_light_visible_raw"),
       fanRpmSensor_("fan_rpm"),
       lightFaultReasonSensor_("light_fault_reason"),
       lightFaultBinarySensor_("light_fault"),
@@ -101,6 +107,7 @@ HAInterface::HAInterface(FanController& fanController,
       shtFaultBinarySensor_("sht_fault"),
       rtcFaultBinarySensor_("rtc_fault"),
       eepromFaultBinarySensor_("eeprom_fault"),
+      lightSensorFaultBinarySensor_("light_sensor_fault"),
       fanSwitch_("fan"),
       fanAutoModeSwitch_("fan_auto_mode"),
       lightAutoModeSwitch_("light_auto_mode"),
@@ -151,6 +158,13 @@ void HAInterface::begin() {
 
   soilRawSensor_.setName("Soil Moisture Raw");
 
+  cabinetIlluminanceSensor_.setName("Cabinet Illuminance");
+  cabinetIlluminanceSensor_.setUnitOfMeasurement("lx");
+
+  cabinetFullSpectrumSensor_.setName("Cabinet Light Full Spectrum Raw");
+  cabinetInfraredSensor_.setName("Cabinet Light Infrared Raw");
+  cabinetVisibleSensor_.setName("Cabinet Light Visible Raw");
+
   fanRpmSensor_.setName("Fan RPM");
   fanRpmSensor_.setUnitOfMeasurement("rpm");
 
@@ -161,6 +175,7 @@ void HAInterface::begin() {
   shtFaultBinarySensor_.setName("SHT Fault");
   rtcFaultBinarySensor_.setName("RTC Fault");
   eepromFaultBinarySensor_.setName("EEPROM Fault");
+  lightSensorFaultBinarySensor_.setName("Light Sensor Fault");
 
   fanSwitch_.setName("Fan");
   fanAutoModeSwitch_.setName("Fan Auto Mode");
@@ -428,6 +443,16 @@ void HAInterface::publishSensorValues(bool force) {
     lastSoilPublishMs_ = nowMs;
   }
 
+  if (force || (nowMs - lastLightSensorPublishMs_ >= LIGHT_SENSOR_PUBLISH_INTERVAL_MS)) {
+    if (lightSensor_.hasValidSample()) {
+      cabinetIlluminanceSensor_.setValue(lightSensor_.getLastLux());
+      cabinetFullSpectrumSensor_.setValue(static_cast<int32_t>(lightSensor_.getLastFullSpectrum()));
+      cabinetInfraredSensor_.setValue(static_cast<int32_t>(lightSensor_.getLastInfrared()));
+      cabinetVisibleSensor_.setValue(static_cast<int32_t>(lightSensor_.getLastVisible()));
+    }
+    lastLightSensorPublishMs_ = nowMs;
+  }
+
   if (force || (nowMs - lastFanPublishMs_ >= FAN_RPM_PUBLISH_INTERVAL_MS)) {
     fanRpmSensor_.setValue(static_cast<int32_t>(fanController_.getRPM()));
     lastFanPublishMs_ = nowMs;
@@ -481,6 +506,7 @@ void HAInterface::publishFaultStates(bool force) {
   shtFaultBinarySensor_.setState(sht_.hasFault(), force);
   rtcFaultBinarySensor_.setState(clockService_.hasFault(), force);
   eepromFaultBinarySensor_.setState(configManager_.hasFault(), force);
+  lightSensorFaultBinarySensor_.setState(lightSensor_.hasFault(), force);
   lightFaultReasonSensor_.setValue(lightController_.getLightFaultReason());
 }
 

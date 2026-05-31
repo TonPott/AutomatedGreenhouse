@@ -23,12 +23,14 @@ This file tracks open work, next steps, validation needs, and optional improveme
 - Validate SHDN behavior and relay sequencing.
 - Validate fan tach fault detection.
 - Validate soil moisture depth correction with real sensor placement.
+- Validate CQRTSL25911 placement, I2C address `0x29`, INT wiring on `PIN_LIGHT_SENSOR_INT`, and useful lux/raw ranges with lamp off and at representative dim levels.
 
 ## Home Assistant Follow-Up
 
 - Implement or update HA dashboard/scripts separately from this firmware branch.
 - Add HA automations for the documented `button.read_soil_raw_value` calibration workflow.
 - Confirm that fault entities are displayed clearly in HA.
+- Use HA history to design future lux-hour assistance from cabinet illuminance, the outside brightness sensor, grow-light brightness, and time of day.
 
 ## Optional Improvements
 

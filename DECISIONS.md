@@ -4,6 +4,39 @@ This file records important design, hardware, and architecture decisions for the
 It explains why the current design looks the way it does.
 It does not replace `README.md`, `SPEC.md`, `MODULES.md`, or `ROADMAP.md`.
 
+## 2026-05 – Cabinet light sensor starts as measurement-only
+
+Status: accepted
+
+### Context
+
+- The CQRTSL25911 sensor can only be placed inside the plant cabinet.
+- When the grow light is on, the sensor measures the combined cabinet light environment and cannot independently evaluate room ambient light.
+- A future light-sum design should also consider the outside brightness sensor that already exists in Home Assistant.
+
+### Decision
+
+- Integrate the CQRTSL25911 / TSL25911 first as a measurement-only firmware module.
+- Publish cabinet illuminance and raw light channels to Home Assistant.
+- Keep the existing Arduino schedule, HA dimming interface, and fallback behavior unchanged.
+- Prepare the sensor INT line physically, but use polling in the initial firmware.
+- Treat real measurement histories and HA exports as sensitive local data that must not be committed.
+
+### Consequences
+
+- The sensor can be logged in HA before any automatic control logic is designed.
+- Future lux-hour compensation should be HA-first and should use existing HA dimming entities while `light_auto_mode = OFF`.
+- Standalone/fallback lux-based behavior remains future work and must be designed explicitly before implementation.
+
+### Affected Areas
+
+- `SPEC.md`
+- `MODULES.md`
+- `HARDWARE.md`
+- `docs/entity-model.md`
+- `sketches/Smaeenhouse/LightSensor.*`
+- `sketches/Smaeenhouse/HAInterface.*`
+
 ## 2026-05 – AD5263 replaces the old PWM/RC/PC817 dimmer concept
 
 Status: accepted

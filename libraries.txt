@@ -18,6 +18,11 @@ Install these libraries before compiling the project. The repository setup scrip
   - SHT31/SHT3x temperature and humidity sensor support.
 - `Adafruit BusIO@1.17.4`
   - Required by RTClib for I2C device helpers.
+- `Adafruit Unified Sensor@1.1.15`
+  - Required by the Adafruit TSL2591 light sensor library.
+- `Adafruit TSL2591 Library@1.4.5`
+  - CQrobot CQRTSL25911 / TSL25911 cabinet illuminance sensor support.
+  - Used only for measurement and Home Assistant publishing in the initial integration.
 - `RTClib@2.1.4`
   - DS3231 RTC and alarm support.
 - `PubSubClient@2.8.0`

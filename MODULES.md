@@ -16,6 +16,7 @@ Recommended files:
 - `sketches/Smaeenhouse/FanController.h/.cpp`
 - `sketches/Smaeenhouse/LightController.h/.cpp`
 - `sketches/Smaeenhouse/MoistureSensor.h/.cpp`
+- `sketches/Smaeenhouse/LightSensor.h/.cpp`
 - `sketches/Smaeenhouse/ClockService.h/.cpp`
 - `sketches/Smaeenhouse/NetworkManager.h/.cpp`
 - `sketches/Smaeenhouse/HAInterface.h/.cpp`
@@ -51,10 +52,14 @@ Central compile-time constants.
 - `PIN_LIGHT_DIM_SHDN`
 - `PIN_LIGHT_POWER`
 - `PIN_SOIL_SENSOR`
+- `PIN_LIGHT_SENSOR_INT`
 
 - `AD5263_I2C_ADDRESS = 0x2C`
 - `AD5263_AD0_TO_GND = true`
 - `AD5263_AD1_TO_GND = true`
+- `TSL2591_I2C_ADDRESS = 0x29`
+- `LIGHT_SENSOR_PUBLISH_INTERVAL_MS`
+- `LIGHT_SENSOR_FAULT_FAILURE_COUNT`
 
 - channel-specific effective RDAC limits for the used dimmer channels (`W2` and `W1`), for example:
   - `LIGHT_DIM_W2_RDAC_MIN_EFFECTIVE`
@@ -500,7 +505,53 @@ percent = (soilAir - raw) / ((soilAir - soilWater) * depth_factor) * 100
 
 The air reference corresponds to `0 %`, and the water reference at `120 mm` corresponds to `100 %`. Valid percent values are constrained to `0..100 %`. The linear correction is intentionally sufficient for this project.
 
-## 9. ClockService
+## 9. LightSensor
+
+### Purpose
+Reading the CQrobot CQRTSL25911 / TSL25911 cabinet light sensor.
+
+### Responsibilities
+- initialize the TSL25911 on I2C address `0x29`
+- configure measurement timing and gain for broad cabinet-light measurements
+- poll from normal loop code only
+- keep the last valid lux and raw-channel readings
+- expose a separate fault state after repeated read/initialization failures
+
+### States
+- `available`
+- `fault`
+- `lastSampleValid`
+- `lastLux`
+- `lastFullSpectrum`
+- `lastInfrared`
+- `lastVisible`
+- `consecutiveReadFailures`
+- `lastReadMs`
+
+### API
+- `void begin(TwoWire& wire);`
+- `void update(uint32_t nowMs);`
+- `void sampleNow();`
+- `bool isAvailable() const;`
+- `bool hasFault() const;`
+- `bool hasValidSample() const;`
+- `float getLastLux() const;`
+- raw-channel getters for full spectrum, infrared, and visible
+
+### Rules
+- `update()` polls every `LIGHT_SENSOR_PUBLISH_INTERVAL_MS`.
+- The INT pin is reserved as `PIN_LIGHT_SENSOR_INT` and physically wired for future use, but firmware v1 does not attach an ISR.
+- No I2C access may happen in an ISR.
+- The light sensor is measurement-only in v1 and must not command the light.
+- `light_sensor_fault` is separate from `light_fault`; a broken light sensor must not block existing light operation.
+- Real measurement histories and HA exports are sensitive local data and must not be committed.
+
+### Future Lux-Hour Assistance
+The sensor is intended to support a later HA-first light-sum design. HA can combine cabinet illuminance, the outside brightness sensor, current grow-light brightness, and time of day to derive gradual compensation targets.
+
+The future control model should use existing HA dimming entities while `light_auto_mode = OFF`. It should avoid end-of-day catch-up at full power and instead distribute corrections according to expected brightness for the current time of day. Standalone/fallback lux-based behavior remains out of scope until separately designed.
+
+## 10. ClockService
 
 ### Purpose
 Management of RTC_DS3231, its alarms, and NTP synchronization.
@@ -557,7 +608,7 @@ enum class ClockAlarmEvent {
 - reprogram alarm registers after time sync or configuration change
 - I²C access only outside the ISR
 
-## 10. NetworkManager
+## 11. NetworkManager
 
 ### Purpose
 Manage WiFi and MQTT connection.
@@ -589,7 +640,7 @@ Manage WiFi and MQTT connection.
 - if offline >10 min: `fallbackActive = true`
 - on successful connection again: `fallbackActive = false`
 
-## 11. HAInterface
+## 12. HAInterface
 
 ### Purpose
 Mapping of all HA entities and processing of HA commands.
@@ -606,6 +657,7 @@ The module should be able to access other modules, for example by reference in t
 - `FanController&`
 - `LightController&`
 - `MoistureSensor&`
+- `LightSensor&`
 - `ClockService&`
 - `SHTa&`
 - `PersistentConfigManager&`
@@ -614,8 +666,8 @@ The module should be able to access other modules, for example by reference in t
 ### HA Entities
 - `HADevice`
 - `HAMqtt`
-- `HASensorNumber` for temperature, humidity, `sensor.soil_moisture_percent`, `sensor.soil_moisture_raw`, RPM
-- `HABinarySensor` for `light_fault`, `fan_fault`, `sht_fault`, `rtc_fault`, `eeprom_fault`
+- `HASensorNumber` for temperature, humidity, `sensor.soil_moisture_percent`, `sensor.soil_moisture_raw`, cabinet illuminance/raw light channels, RPM
+- `HABinarySensor` for `light_fault`, `fan_fault`, `sht_fault`, `rtc_fault`, `eeprom_fault`, `light_sensor_fault`
 - `HASensor` (text) for `light_fault_reason`
 - `HASwitch` for Fan, FanAuto, LightAuto, HardPowerOff, fallback behavior
 - `HALight` for Grow-Light
@@ -667,6 +719,7 @@ The firmware documentation uses the following fault states:
 - `sht_fault`
 - `rtc_fault`
 - `eeprom_fault`
+- `light_sensor_fault`
 
 Do not use:
 
@@ -678,7 +731,7 @@ Additional text status (as text `sensor`):
 
 - `light_fault_reason`
 
-## 12. Smaeenhouse.ino
+## 13. Smaeenhouse.ino
 
 ### Purpose
 Central orchestration.
@@ -711,22 +764,24 @@ Central orchestration.
 8. `fan.update(nowMs)`
 9. `light.update(nowMs)`
 10. `moisture.update(nowMs)`
-11. `ha.update(nowMs)`
+11. `lightSensor.update(nowMs)`
+12. `ha.update(nowMs)`
 
-## 13. ISR Strategy
+## 14. ISR Strategy
 
 There should be three ISR-adjacent flags:
 
 - `volatile bool shtAlertPending`
 - `volatile bool rtcAlarmPending`
 - tach ISR in FanController only for pulse counting
+- light sensor INT is reserved for future use but does not attach an ISR in v1
 
 Important:
 - no I²C operation in ISR
 - no MQTT/HA operation in ISR
 - no expensive logic in ISR
 
-## 14. Logical Core Flows
+## 15. Logical Core Flows
 
 ### SHT Alert → Fan
 1. Pin 7 interrupt sets flag

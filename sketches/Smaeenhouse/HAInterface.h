@@ -7,6 +7,7 @@
 #include "ClockService.h"
 #include "FanController.h"
 #include "LightController.h"
+#include "LightSensor.h"
 #include "MoistureSensor.h"
 #include "NetworkManager.h"
 #include "PersistentConfig.h"
@@ -17,6 +18,7 @@ public:
   HAInterface(FanController& fanController,
               LightController& lightController,
               MoistureSensor& moistureSensor,
+              LightSensor& lightSensor,
               ClockService& clockService,
               SHTa& sht,
               PersistentConfigManager& configManager,
@@ -70,6 +72,7 @@ private:
   FanController& fanController_;
   LightController& lightController_;
   MoistureSensor& moistureSensor_;
+  LightSensor& lightSensor_;
   ClockService& clockService_;
   SHTa& sht_;
   PersistentConfigManager& configManager_;
@@ -84,6 +87,10 @@ private:
   HASensorNumber humiditySensor_;
   HASensorNumber soilPercentSensor_;
   HASensorNumber soilRawSensor_;
+  HASensorNumber cabinetIlluminanceSensor_;
+  HASensorNumber cabinetFullSpectrumSensor_;
+  HASensorNumber cabinetInfraredSensor_;
+  HASensorNumber cabinetVisibleSensor_;
   HASensorNumber fanRpmSensor_;
   HASensor lightFaultReasonSensor_;
 
@@ -92,6 +99,7 @@ private:
   HABinarySensor shtFaultBinarySensor_;
   HABinarySensor rtcFaultBinarySensor_;
   HABinarySensor eepromFaultBinarySensor_;
+  HABinarySensor lightSensorFaultBinarySensor_;
 
   HASwitch fanSwitch_;
   HASwitch fanAutoModeSwitch_;
@@ -130,6 +138,7 @@ private:
 
   uint32_t lastTempHumPublishMs_ = 0;
   uint32_t lastSoilPublishMs_ = 0;
+  uint32_t lastLightSensorPublishMs_ = 0;
   uint32_t lastFanPublishMs_ = 0;
 
   uint8_t pendingHaDimTargetPercent_ = 100;

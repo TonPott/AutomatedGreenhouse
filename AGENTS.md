@@ -171,6 +171,13 @@ Before larger code changes:
 
 If code and documentation contradict each other, documentation comes first, unless the user explicitly says otherwise.
 
+### 17. Treat Real Measurement Data As Sensitive
+
+- Real sensor histories, Home Assistant exports, timestamped measurement tables, calibration datasets, and analysis files derived from the real cabinet or room environment are sensitive project data.
+- Do not commit or push real measurement data to GitHub.
+- Keep local exports under ignored folders such as `measurements/`, `data/`, `exports/`, `ha-history/`, or `home-assistant-history/`.
+- Documentation may include anonymized, synthetic, or heavily summarized examples when needed, but not raw real-world histories.
+
 ## Preferred Working Order
 
 1. Fix compile errors first

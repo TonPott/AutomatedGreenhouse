@@ -50,6 +50,28 @@ A single HA device:
 - Direction: Arduino → HA
 - Unit: `rpm`
 
+### Cabinet Illuminance
+- Entity type: `sensor`
+- Name: `cabinet_illuminance_lux`
+- Direction: Arduino → HA
+- Unit: `lx`
+- Meaning:
+  - illuminance measured inside the plant cabinet by the CQRTSL25911 / TSL25911 sensor
+  - measurement-only in the initial integration
+  - may be used later by HA together with an outside brightness sensor and `grow_light` brightness history for lux-hour assistance
+
+### Cabinet Light Raw Channels
+- Entity type: `sensor`
+- Names:
+  - `cabinet_light_full_spectrum_raw`
+  - `cabinet_light_infrared_raw`
+  - `cabinet_light_visible_raw`
+- Direction: Arduino → HA
+- Unit: raw sensor counts
+- Meaning:
+  - diagnostic raw-channel values from the light sensor
+  - useful for checking saturation, placement, and relation between lamp brightness and measured cabinet light
+
 ## Fault Entities
 
 ### Light Fault
@@ -87,6 +109,14 @@ A single HA device:
 - Meaning:
   - AT24C32 unavailable or persistence problem
 
+### Light Sensor Fault
+- Entity type: `binary_sensor`
+- Name: `light_sensor_fault`
+- Direction: Arduino → HA
+- Meaning:
+  - CQRTSL25911 / TSL25911 initialization or read failures
+  - separate from `light_fault`; existing light operation should continue if only the light sensor fails
+
 ### Light Fault Reason
 - Entity type: `sensor` (text)
 - Name: `light_fault_reason`
@@ -105,6 +135,12 @@ Not part of the model:
 - `sensor_fault`
 - `system_fault`
 - `last_fault_code`
+
+## Measurement Data Privacy
+
+Real measurement histories are sensitive data. Home Assistant exports, timestamped lux histories, calibration tables, and derived analysis datasets from the real room or cabinet must stay local and must not be committed or pushed to GitHub.
+
+Documentation may include synthetic, anonymized, or highly summarized examples when needed.
 
 ## Switches
 
@@ -166,6 +202,21 @@ When `light_auto_mode = ON`:
 - brightness changes may optionally be treated as temporary correction
 - HA schedule triggers are ignored
 - on/off may be ignored or disabled
+
+## Future Lux-Hour Assistance
+
+The cabinet light sensor is intended to support later HA-side light-sum control, not immediate firmware-side control.
+
+Future HA automations may combine:
+
+- `sensor.cabinet_illuminance_lux`
+- an outside brightness sensor already available in HA
+- `light.grow_light` state and brightness
+- time of day and the current schedule window
+
+The intended behavior is gradual compensation based on expected light at the current time of day. It should avoid waiting until the end of the day and then switching the grow light to full power to compensate for a low daily total.
+
+In standalone or fallback modes, the firmware should initially keep the existing schedule/fallback behavior. Any lux-based local fallback must be designed separately and bounded to the Arduino schedule window.
 
 ## Number Entities
 

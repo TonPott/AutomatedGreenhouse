@@ -489,29 +489,70 @@ The firmware should actively synchronize via NTP and set the RTC from it.
 
 After successful time sync, the DS3231 alarm registers should be rewritten.
 
-## 10. Home Assistant / MQTT
+## 10. Cabinet Light Sensor
 
-### 10.1 Library
+### 10.1 Sensor Type
+The firmware includes a CQrobot CQRTSL25911 / TSL25911 light sensor on I2C address `0x29`.
+
+The sensor is mounted inside the plant cabinet. It measures the cabinet light environment, not a clean room ambient-light value while the grow light is on.
+
+### 10.2 Initial Firmware Role
+The initial integration is measurement-only:
+
+- read the sensor from normal loop code only
+- publish cabinet illuminance and raw light-channel values to HA
+- publish a separate `light_sensor_fault` state if repeated reads fail
+- do not change the Arduino light schedule
+- do not change HA dimming semantics
+- do not change fallback or standalone light behavior
+
+The sensor INT pin is wired to `PIN_LIGHT_SENSOR_INT` for future use. Firmware v1 does not attach an ISR and does not read I2C from interrupt context.
+
+### 10.3 Future Lux-Hour Assistance
+Future light assistance may use Home Assistant history to combine:
+
+- cabinet illuminance from this sensor
+- outside brightness from the existing exterior HA sensor
+- current `grow_light` brightness
+- time of day and schedule window
+
+The intended future direction is a gradual lux-hour or light-sum compensation model. It should avoid end-of-day catch-up behavior where the lamp suddenly switches to full power because the daily total is low. Instead, HA should derive expected brightness by time of day and apply slow corrections through the existing HA dimming entities while `light_auto_mode = OFF`.
+
+Standalone and fallback behavior remains conservative until a separate design explicitly defines safe local lux-based corrections. By default, connection loss continues to use the existing fallback behavior without lux-hour compensation.
+
+### 10.4 Measurement Data Sensitivity
+Real measurement histories are sensitive project data. Home Assistant exports, timestamped lux histories, calibration tables, and analysis datasets from the real cabinet or room must remain local and must not be committed to GitHub.
+
+Documentation may describe algorithms and may include synthetic or anonymized examples, but not raw real-world measurement histories.
+
+## 11. Home Assistant / MQTT
+
+### 11.1 Library
 Used library:
 - Arduino Home Assistant Integration by Dawid Chyrzynski
 - Reference: `https://github.com/dawidchyrzynski/arduino-home-assistant`
 
-### 10.2 Device
+### 11.2 Device
 The Arduino appears as one HA device.
 
-### 10.3 HA Entities
+### 11.3 HA Entities
 
 #### Sensors
 - `temperature`
 - `humidity`
 - `soil_moisture_percent`
 - `soil_moisture_raw`
+- `cabinet_illuminance_lux`
+- `cabinet_light_full_spectrum_raw`
+- `cabinet_light_infrared_raw`
+- `cabinet_light_visible_raw`
 - `fan_rpm`
 - `light_fault`
 - `fan_fault`
 - `sht_fault`
 - `rtc_fault`
 - `eeprom_fault`
+- `light_sensor_fault`
 - `light_fault_reason`
 
 Type mapping in HA:
@@ -521,6 +562,7 @@ Type mapping in HA:
 - `binary_sensor.sht_fault`
 - `binary_sensor.rtc_fault`
 - `binary_sensor.eeprom_fault`
+- `binary_sensor.light_sensor_fault`
 - `sensor.light_fault_reason` (text)
 
 #### Switches
@@ -552,7 +594,7 @@ Type mapping in HA:
 - `read_soil_raw_value`
 - `start_ha_dim`
 
-### 10.4 HA Dimming Request
+### 11.4 HA Dimming Request
 For the HA schedule dimming job, operation is fixed as follows:
 
 - `number.ha_dim_target_percent`
@@ -574,21 +616,21 @@ Persistence rule:
 - The Number entities remain runtime/command parameters and are not durable configuration.
 - If a HA dimming job is relevant after restart, its resumption is reconstructed through the `Light Resume State` (start/target/duration/start time on RTC/Epoch basis), not through `millis()`.
 
-### 10.5 State Restoration
+### 11.5 State Restoration
 Separate sensors for actual light brightness or light mode are not required as long as:
 
 - the state of the `light` entity is published correctly
 - the `switch` states are published correctly
 - after startup or MQTT reconnect, the current states are actively reported to HA again
 
-## 11. Network / Connection Behavior
+## 12. Network / Connection Behavior
 
-### 11.1 Connection
+### 12.1 Connection
 The device connects to:
 - WiFi
 - MQTT broker
 
-### 11.2 Credentials
+### 12.2 Credentials
 All credentials are in local `sketches/Smaeenhouse/Credentials.h`, at least:
 - WiFi SSID
 - WiFi password
@@ -600,13 +642,13 @@ All credentials are in local `sketches/Smaeenhouse/Credentials.h`, at least:
 - NTP server
 - timezone / offset if needed
 
-### 11.3 Availability / LWT
+### 12.3 Availability / LWT
 The device reports availability via MQTT and uses LWT.
 
-### 11.4 Reconnect
+### 12.4 Reconnect
 On WiFi/MQTT outage, reconnect is automatic.
 
-### 11.5 Fallback After Connection Loss
+### 12.5 Fallback After Connection Loss
 If the connection is not restored for more than 10 minutes, a configurable behavior should apply for the light:
 
 - turn light off
@@ -616,15 +658,15 @@ This behavior should be configurable via HA.
 
 Other local functions such as sensors, RTC, EEPROM, and fan logic continue running.
 
-## 12. Persistence
+## 13. Persistence
 
-### 12.1 Storage Location
+### 13.1 Storage Location
 Used storage:
 
 - `AT24C32` on the RTC module
 - access through **JC_EEPROM**
 
-### 12.2 Already Existing Persistent Configuration (Reuse)
+### 13.2 Already Existing Persistent Configuration (Reuse)
 Already existing and **not** to be created a second time:
 
 - `lightAutoMode`
@@ -635,7 +677,7 @@ Already existing and **not** to be created a second time:
 - `lightFallbackMode`
 - additional sensor/soil/threshold values
 
-### 12.3 Light Resume State (Add New)
+### 13.3 Light Resume State (Add New)
 In addition, a small resume state is required for target-state reconstruction, at least with:
 
 - last effective brightness
@@ -646,32 +688,33 @@ In addition, a small resume state is required for target-state reconstruction, a
 - job duration
 - job start time on RTC/Epoch basis
 
-### 12.4 Time Base For Resumption
+### 13.4 Time Base For Resumption
 
 - `millis()` is not sufficient for restart resumption.
 - Correct reconstruction after restart requires an RTC/Epoch-based time reference.
 
-### 12.5 Write Behavior
+### 13.5 Write Behavior
 
 - Write only when values actually changed.
 - Design resume-state writes so unnecessary EEPROM load is avoided.
 
-## 13. Architecture
-### 13.1 Non-Blocking
+## 14. Architecture
+### 14.1 Non-Blocking
 - no long `delay()` calls
 - control via `millis()`
 - short I²C waits are allowed
 
-### 13.2 Module Boundaries
+### 14.2 Module Boundaries
 - SHTa: sensor + alert evaluation
 - FanController: fan switching + RPM measurement
 - LightController: AD5263/relay + dimming requests
+- LightSensor: CQRTSL25911/TSL25911 cabinet illuminance measurement
 - ClockService: DS3231 + alarm management + NTP sync
 - HAInterface: HA entities + commands
 - NetworkManager: WiFi/MQTT + reconnect
 - Persistence: external EEPROM
 
-### 13.3 Fault States (Mandatory)
+### 14.3 Fault States (Mandatory)
 The following fault states are mandatory in the firmware documentation:
 
 - `light_fault`
@@ -679,6 +722,7 @@ The following fault states are mandatory in the firmware documentation:
 - `sht_fault`
 - `rtc_fault`
 - `eeprom_fault`
+- `light_sensor_fault`
 
 In HA, these fault flags are published as `binary_sensor`.
 
@@ -708,8 +752,8 @@ Mandatory behavior rules:
 - Fan fault: if the fan should effectively be on but no tach pulses are present after the grace period, set `fan_fault`.
 - Do not claim strong hardware self-diagnostics for relay and soil moisture sensor, because there is no real feedback channel.
 
-## 14. Reused Existing Code
-### 14.1 SHTa
+## 15. Reused Existing Code
+### 15.1 SHTa
 The following should especially be reused:
 
 - `begin()`
@@ -726,5 +770,5 @@ The following should especially be reused:
 - `crc8()`
 - `encodeAlertLimit()`
 
-### 14.2 Alert Structure
+### 15.2 Alert Structure
 - `alertTriggers[]` remains as status container

@@ -11,11 +11,13 @@ constexpr uint8_t PIN_FAN_TACH = A1;
 constexpr uint8_t PIN_LIGHT_DIM_SHDN = 4;
 constexpr uint8_t PIN_LIGHT_POWER = 3;
 constexpr uint8_t PIN_SOIL_SENSOR = A0;
+constexpr uint8_t PIN_LIGHT_SENSOR_INT = 9;
 
 // Runtime timings
 constexpr uint32_t SOIL_PUBLISH_INTERVAL_MS = 10000UL;
 constexpr uint32_t TEMP_HUM_PUBLISH_INTERVAL_MS = 60000UL;
 constexpr uint32_t FAN_RPM_PUBLISH_INTERVAL_MS = 30000UL;
+constexpr uint32_t LIGHT_SENSOR_PUBLISH_INTERVAL_MS = 30000UL;
 constexpr uint32_t SHT_STATUS_POLL_INTERVAL_MS = 5000UL;
 constexpr uint32_t WIFI_RECONNECT_INTERVAL_MS = 10000UL;
 constexpr uint32_t NTP_RETRY_INTERVAL_MS = 60000UL;
@@ -50,6 +52,10 @@ constexpr uint16_t LIGHT_DIM_BOOT_SETTLE_MS = 2;
 constexpr uint32_t LIGHT_DIM_STEP_INTERVAL_MS = 100UL;
 constexpr uint32_t FAN_FAULT_GRACE_MS = FAN_RPM_PUBLISH_INTERVAL_MS;
 constexpr uint32_t LIGHT_RESUME_INVALID_EPOCH = 0UL;
+constexpr uint8_t LIGHT_SENSOR_FAULT_FAILURE_COUNT = 3;
+
+// CQrobot CQRTSL25911 / TSL25911 illuminance sensor
+constexpr uint8_t TSL2591_I2C_ADDRESS = 0x29;
 
 // WINGONEER Tiny DS3231 AT24C32 module
 constexpr uint8_t RTC_EEPROM_I2C_ADDRESS = 0x57;
