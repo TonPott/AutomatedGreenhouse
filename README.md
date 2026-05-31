@@ -114,6 +114,19 @@ SKETCH=hardware-tests/AD5263Test ./scripts/check-arduino.sh
 
 If the compile check reports that the Arduino toolchain is not prepared, run the matching setup script once and retry.
 
+## Version Policy
+
+This project pins core and library versions deliberately because the production firmware depends on specific board, networking, RTC, sensor, persistence, and Home Assistant APIs.
+
+Keep these files in sync whenever dependencies change:
+
+- `libraries.txt`
+- `sketches/Smaeenhouse/sketch.yaml`
+- `scripts/setup-arduino.ps1`
+- `scripts/setup-arduino.sh`
+
+Normal compile checks must not install missing dependencies. Run setup first when a pinned core or library version changes, then run the compile check.
+
 ## Credentials
 
 Create a local `sketches/Smaeenhouse/Credentials.h` file based on `sketches/Smaeenhouse/Credentials.example.h`.
