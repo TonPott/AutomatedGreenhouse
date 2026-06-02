@@ -58,7 +58,7 @@ Central compile-time constants.
 - `AD5263_AD0_TO_GND = true`
 - `AD5263_AD1_TO_GND = true`
 - `TSL2591_I2C_ADDRESS = 0x29`
-- `LIGHT_SENSOR_PUBLISH_INTERVAL_MS`
+- `LIGHT_SENSOR_PUBLISH_INTERVAL_MS = 900000` (15 minutes / four samples per hour)
 - `LIGHT_SENSOR_FAULT_FAILURE_COUNT`
 
 - channel-specific effective RDAC limits for the used dimmer channels (`W2` and `W1`), for example:
@@ -539,7 +539,7 @@ Reading the CQrobot CQRTSL25911 / TSL25911 cabinet light sensor.
 - raw-channel getters for full spectrum, infrared, and visible
 
 ### Rules
-- `update()` polls every `LIGHT_SENSOR_PUBLISH_INTERVAL_MS`.
+- `update()` polls every `LIGHT_SENSOR_PUBLISH_INTERVAL_MS` (15 minutes / four samples per hour).
 - The INT pin is reserved as `PIN_LIGHT_SENSOR_INT` and physically wired for future use, but firmware v1 does not attach an ISR.
 - No I2C access may happen in an ISR.
 - The light sensor is measurement-only in v1 and must not command the light.
