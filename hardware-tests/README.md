@@ -10,6 +10,7 @@ Hardware tests normally run locally on real hardware. They can document expected
 
 - `AD5263Test`
 - `ClockServiceTest`
+- `CQRTSL25911Test`
 - `FanControllerTest`
 - `HAInterfaceTest`
 - `LightControllerTest`
@@ -19,6 +20,27 @@ Hardware tests normally run locally on real hardware. They can document expected
 - `ShtModuleTest`
 
 `ClockServiceTest`, `NetworkManagerTest`, and `HAInterfaceTest` use credential-dependent modules. Compile checks can temporarily use the production `Credentials.example.h`; uploads to real hardware need real local credentials copied into the test folder or otherwise provided.
+
+### CQRTSL25911Test
+
+Minimal bench test for the CQrobot CQRTSL25911 / TSL25911 light sensor.
+
+Wiring assumptions:
+
+- I2C address: `0x29`
+- I2C bus: shared `SDA/SCL`
+- prepared INT line: Arduino D9 / `PIN_LIGHT_SENSOR_INT`
+
+Expected Serial output:
+
+- sensor initialization result
+- lux value
+- full-spectrum raw value
+- infrared raw value
+- derived visible raw value
+- current D9 INT pin state
+
+The sketch polls the sensor every 2 seconds. It does not attach an ISR and does not use interrupt-driven I2C. Use it to compare dark, room ambient, and grow-light conditions. Keep real measurement logs local and do not commit Home Assistant exports or timestamped sensor histories.
 
 ## Compile Checks
 
