@@ -1,0 +1,225 @@
+
+========================================
+CQRTSL25911 / TSL25911 light sensor test
+========================================
+Expected I2C address: 0x29
+Prepared INT pin: D9
+Sensor initialized.
+Move the sensor between dark, ambient, and grow-light conditions.
+
+=== CQRTSL25911 sample ===
+Lux = 536.27
+Full spectrum raw = 233
+Infrared raw = 58
+Visible raw = 175
+INT pin D9 = HIGH
+
+=== CQRTSL25911 sample ===
+Lux = 536.27
+Full spectrum raw = 233
+Infrared raw = 58
+Visible raw = 175
+INT pin D9 = HIGH
+
+=== CQRTSL25911 sample ===
+Lux = 536.27
+Full spectrum raw = 233
+Infrared raw = 58
+Visible raw = 175
+INT pin D9 = HIGH
+
+=== CQRTSL25911 sample ===
+Lux = 536.27
+Full spectrum raw = 233
+Infrared raw = 58
+Visible raw = 175
+INT pin D9 = HIGH
+
+=== CQRTSL25911 sample ===
+Lux = 536.27
+Full spectrum raw = 233
+Infrared raw = 58
+Visible raw = 175
+INT pin D9 = HIGH
+
+=== CQRTSL25911 sample ===
+Lux = 536.27
+Full spectrum raw = 233
+Infrared raw = 58
+Visible raw = 175
+INT pin D9 = HIGH
+
+=== CQRTSL25911 sample ===
+Lux = 536.27
+Full spectrum raw = 233
+Infrared raw = 58
+Visible raw = 175
+INT pin D9 = HIGH
+
+=== CQRTSL25911 sample ===
+Lux = 536.27
+Full spectrum raw = 233
+Infrared raw = 58
+Visible raw = 175
+INT pin D9 = HIGH
+
+=== CQRTSL25911 sample ===
+Lux = 536.27
+Full spectrum raw = 233
+Infrared raw = 58
+Visible raw = 175
+INT pin D9 = HIGH
+
+=== CQRTSL25911 sample ===
+Lux = 536.27
+Full spectrum raw = 233
+Infrared raw = 58
+Visible raw = 175
+INT pin D9 = HIGH
+
+=== CQRTSL25911 sample ===
+Lux = 536.27
+Full spectrum raw = 233
+Infrared raw = 58
+Visible raw = 175
+INT pin D9 = HIGH
+
+=== CQRTSL25911 sample ===
+Lux = 540.09
+Full spectrum raw = 234
+Infrared raw = 58
+Visible raw = 176
+INT pin D9 = HIGH
+
+=== CQRTSL25911 sample ===
+Lux = 537.80
+Full spectrum raw = 235
+Infrared raw = 59
+Visible raw = 176
+INT pin D9 = HIGH
+
+=== CQRTSL25911 sample ===
+Lux = 1281.38
+Full spectrum raw = 559
+Infrared raw = 140
+Visible raw = 419
+INT pin D9 = HIGH
+
+=== CQRTSL25911 sample ===
+Lux = 0.00
+Full spectrum raw = 1
+Infrared raw = 1
+Visible raw = 0
+INT pin D9 = HIGH
+
+=== CQRTSL25911 sample ===
+Lux = 0.00
+Full spectrum raw = 1
+Infrared raw = 1
+Visible raw = 0
+INT pin D9 = HIGH
+
+=== CQRTSL25911 sample ===
+Lux = 0.00
+Full spectrum raw = 1
+Infrared raw = 1
+Visible raw = 0
+INT pin D9 = HIGH
+
+=== CQRTSL25911 sample ===
+Lux = 541.62
+Full spectrum raw = 236
+Infrared raw = 59
+Visible raw = 177
+INT pin D9 = HIGH
+
+=== CQRTSL25911 sample ===
+Lux = 540.09
+Full spectrum raw = 234
+Infrared raw = 58
+Visible raw = 176
+INT pin D9 = HIGH
+
+=== CQRTSL25911 sample ===
+Lux = 537.80
+Full spectrum raw = 235
+Infrared raw = 59
+Visible raw = 176
+INT pin D9 = HIGH
+
+=== CQRTSL25911 sample ===
+Lux = 2243.78
+Full spectrum raw = 985
+Infrared raw = 249
+Visible raw = 736
+INT pin D9 = HIGH
+
+=== CQRTSL25911 sample ===
+Lux = 2491.63
+Full spectrum raw = 1093
+Infrared raw = 276
+Visible raw = 817
+INT pin D9 = HIGH
+
+=== CQRTSL25911 sample ===
+Lux = 2491.63
+Full spectrum raw = 1093
+Infrared raw = 276
+Visible raw = 817
+INT pin D9 = HIGH
+
+=== CQRTSL25911 sample ===
+Lux = 2487.81
+Full spectrum raw = 1092
+Infrared raw = 276
+Visible raw = 816
+INT pin D9 = HIGH
+
+=== CQRTSL25911 sample ===
+Lux = 2513.81
+Full spectrum raw = 1102
+Infrared raw = 278
+Visible raw = 824
+INT pin D9 = HIGH
+
+=== CQRTSL25911 sample ===
+Lux = 533.97
+Full spectrum raw = 234
+Infrared raw = 59
+Visible raw = 175
+INT pin D9 = HIGH
+
+=== CQRTSL25911 sample ===
+Lux = 1088.60
+Full spectrum raw = 475
+Infrared raw = 119
+Visible raw = 356
+INT pin D9 = HIGH
+
+=== CQRTSL25911 sample ===
+Lux = 1079.42
+Full spectrum raw = 471
+Infrared raw = 118
+Visible raw = 353
+INT pin D9 = HIGH
+
+=== CQRTSL25911 sample ===
+Lux = 1075.59
+Full spectrum raw = 470
+Infrared raw = 118
+Visible raw = 352
+INT pin D9 = HIGH
+
+=== CQRTSL25911 sample ===
+Lux = 1079.42
+Full spectrum raw = 471
+Infrared raw = 118
+Visible raw = 353
+INT pin D9 = HIGH
+
+=== CQRTSL25911 sample ===
+Lux = 1079.42
+Full spectrum raw = 471
+Infrared raw = 118
+Visible raw = 353
+INT pin D9 = HIGH
