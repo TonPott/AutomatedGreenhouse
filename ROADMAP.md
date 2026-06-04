@@ -11,8 +11,6 @@ This file tracks open work, next steps, validation needs, and optional improveme
 
 ## Firmware Follow-Up
 
-- Harden WiFi reconnect behavior after sketch upload or module state transitions, using the `NetworkDiagnosticsTest` disconnect-and-retry behavior as reference.
-- Improve production NTP diagnostics so failures distinguish DNS, UDP send, missing UDP response, invalid timestamp, and `WiFi.getTime()` module-time fallback/check results.
 - Check whether invalid `soil_moisture_percent` can be represented as truly unavailable in ArduinoHA.
 - Current fallback behavior: keep publishing raw values and avoid refreshing a misleading percent value if the percent calculation is invalid.
 - Consider whether changing `soil_air`, `soil_water`, or `soil_depth_mm` from HA should trigger an immediate `sampleNow()` and state publish instead of waiting for the next interval or manual raw read.
@@ -26,6 +24,9 @@ This file tracks open work, next steps, validation needs, and optional improveme
 - Validate fan tach fault detection.
 - Validate soil moisture depth correction with real sensor placement.
 - Validate CQRTSL25911 placement, I2C address `0x29`, INT wiring on `PIN_LIGHT_SENSOR_INT`, and useful lux/raw ranges with lamp off and at representative dim levels.
+- Validate production WiFi reconnect after sketch upload or WiFiNINA module state transitions.
+- Validate production MQTT reconnect after broker outage while WiFi stays connected.
+- Validate production NTP serial diagnostics for success and representative failure cases.
 
 ## Home Assistant Follow-Up
 
@@ -37,12 +38,17 @@ This file tracks open work, next steps, validation needs, and optional improveme
 
 ## Optional Improvements
 
+- Consider replacing the brief blocking UDP NTP wait with a non-blocking NTP state machine.
+- Consider introducing a single machine-readable dependency source used by setup and check scripts. Keep `libraries.txt` as human-readable dependency documentation unless or until that source is introduced.
 - Consider a dedicated validity indicator for soil percent if HA cannot show unavailable cleanly.
 - Consider a compact diagnostic view for current AD5263 codes or derived dimmer resistance, if useful later.
 - Consider a small decision-log review before major future refactors.
 
 ## Done / Recently Aligned
 
+- Production WiFi reconnect now forces disconnect, waits a settle interval, and uses bounded timeout-based connect attempts.
+- Production MQTT reconnect now retries periodically while WiFi is connected.
+- Production NTP diagnostics now distinguish DNS, UDP setup/send, missing response, short response, invalid timestamp, and `WiFi.getTime()` fallback/check outcomes.
 - Network diagnostics sketch added for WiFi, DNS, MQTT, Home Assistant discovery, and NTP checks.
 - External NTP validation confirmed `pool.ntp.org` as the preferred configured NTP server.
 - Documentation translated to English.

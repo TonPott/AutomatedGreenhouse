@@ -172,19 +172,50 @@ Status: accepted
 - Use test-local placeholder credentials and do not include production `Credentials.h`.
 - Use diagnostic-specific device and entity identifiers.
 - Prefer `pool.ntp.org` as the default external NTP server for firmware and diagnostics.
-- Keep WiFi reconnect hardening and richer NTP error reporting as firmware follow-up work.
+- Keep diagnostic HA entities out of production firmware.
+- Implement production WiFi reconnect hardening, periodic MQTT reconnect, and richer NTP error reporting without changing production HA entity IDs.
 
 ### Consequences
 
 - Network troubleshooting can separate WiFi/DNS/MQTT/HA/NTP behavior from sensors, actuators, RTC, EEPROM, and dimmer hardware.
-- Production firmware remains smaller and focused.
+- Production firmware remains focused, but now carries the connection hardening learned from the diagnostics sketch.
 - Future HA diagnostic devices should avoid unique ID collisions with production entities.
-- NTP troubleshooting can compare explicit UDP requests with the WiFiNINA module time source.
+- NTP troubleshooting can compare explicit UDP requests with the WiFiNINA module time source, and production serial logs now report the relevant failure class.
+- Production UDP NTP sync may still block briefly while waiting for a response. This is accepted for now because sync attempts happen only at boot, manual sync, or daily resync; a non-blocking NTP state machine remains a future improvement.
 
 ### Affected Areas
 
 - `hardware-tests/NetworkDiagnosticsTest/NetworkDiagnosticsTest.ino`
 - `hardware-tests/NetworkDiagnosticsTest/README.md`
+
+## 2026-06 – Dependency declarations remain duplicated for now
+
+Status: accepted
+
+### Context
+
+- Arduino dependencies are currently listed in multiple places: `libraries.txt`, `sketches/Smaeenhouse/sketch.yaml`, setup scripts, and check scripts.
+- The CQRTSL25911 / TSL25911 integration added Adafruit sensor dependencies and exposed the risk that setup and check script lists can drift apart.
+
+### Decision
+
+- Keep the current duplicated dependency declarations for this branch.
+- Keep `libraries.txt` as human-readable dependency documentation.
+- Update setup/check script library checks explicitly when dependencies change.
+
+### Consequences
+
+- Dependency handling remains simple and compatible with the current scripts.
+- Future work should consider a single machine-readable dependency source that setup/check scripts can consume.
+
+### Affected Areas
+
+- `libraries.txt`
+- `sketches/Smaeenhouse/sketch.yaml`
+- `scripts/setup-arduino.ps1`
+- `scripts/setup-arduino.sh`
+- `scripts/check-arduino.ps1`
+- `scripts/check-arduino.sh`
 - `ROADMAP.md`
 
 ## 2026-05 – Soil moisture calibration is HA-guided and firmware remains stateless for calibration workflow

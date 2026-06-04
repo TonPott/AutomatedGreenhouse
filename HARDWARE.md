@@ -26,6 +26,7 @@ Keep wiring, pin assignments, power domains, and signal-level assumptions here s
   - 230 V supply switched via 3.3 V relay module
   - dimming through variable resistance between `Dim+` and `Dim-`
 - AD5263BRUZ50 on TSSOP-24 adapter as digitally controlled resistance
+- CQrobot CQRTSL25911 illuminance sensor (TSL25911, I2C + prepared interrupt line)
 - Home Assistant with MQTT
 
 ## Power Domains
@@ -46,7 +47,8 @@ Keep wiring, pin assignments, power domains, and signal-level assumptions here s
 | `3` | Output | Light power relay | Hard power switching for the grow light. |
 | `4` | Output | AD5263 `SHDN` | External 10 kOhm pull-down; no internal pull-up. |
 | `A0` | Analog input | Soil moisture | SEN0308 analog signal. |
-| `SDA/SCL` | I2C | SHT31, DS3231, AT24C32, AD5263 | Use 3.3 V-compatible pull-ups. |
+| `9` | Input | CQRTSL25911 INT | Reserved and wired for future light-sensor interrupt use; firmware v1 polls over I2C and does not attach an ISR. |
+| `SDA/SCL` | I2C | SHT31, DS3231, AT24C32, AD5263, CQRTSL25911 | Use 3.3 V-compatible pull-ups. |
 
 ## I2C Devices
 
@@ -56,8 +58,19 @@ Keep wiring, pin assignments, power domains, and signal-level assumptions here s
 | DS3231 | RTC and light schedule alarms | SQW/INT connected to `PIN_RTC_ALARM`. |
 | AT24C32 | External EEPROM for persistent configuration | Fixed project address `0x57`. |
 | AD5263BRUZ50 | Grow-light dimmer resistance path | Fixed project address `0x2C` (`AD0 = GND`, `AD1 = GND`). |
+| CQRTSL25911 / TSL25911 | Cabinet illuminance measurement | Fixed sensor address `0x29`; INT line is wired to `PIN_LIGHT_SENSOR_INT` for future use. |
 
 No I2C access may happen in ISRs.
+
+## Cabinet Light Sensor Placement
+
+The CQRTSL25911 is placed inside the plant cabinet, where it measures the light that actually reaches the cabinet environment. Because the sensor is under the grow light when the lamp is on, it is not a reliable standalone room ambient-light sensor during lamp operation.
+
+In the initial firmware integration, this sensor is measurement-only:
+
+- cabinet illuminance and raw light channels are published to Home Assistant
+- the light schedule, dimming jobs, and fallback behavior are not changed by the sensor
+- the INT line is physically prepared, but no interrupt-driven light-sensor logic is used yet
 
 ## Light Dimmer Signal Conditioning
 

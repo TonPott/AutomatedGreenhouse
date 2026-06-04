@@ -11,6 +11,8 @@ profiles:
       - Sensirion Core (0.7.3)
       - Sensirion I2C SHT3x (1.0.1)
       - Adafruit BusIO (1.17.4)
+      - Adafruit Unified Sensor (1.1.15)
+      - Adafruit TSL2591 Library (1.4.5)
       - RTClib (2.1.4)
       - PubSubClient (2.8.0)
       - home-assistant-integration (2.1.0)

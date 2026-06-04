@@ -6,6 +6,7 @@
 #include "FanController.h"
 #include "HAInterface.h"
 #include "LightController.h"
+#include "LightSensor.h"
 #include "MoistureSensor.h"
 #include "NetworkManager.h"
 #include "PersistentConfig.h"
@@ -24,8 +25,9 @@ FanController fan;
 ClockService clockService;
 LightController light(configManager, cfg, clockService);
 MoistureSensor moisture(PIN_SOIL_SENSOR);
+LightSensor lightSensor;
 NetworkManager networkManager;
-HAInterface ha(fan, light, moisture, clockService, sht, configManager, cfg, networkManager);
+HAInterface ha(fan, light, moisture, lightSensor, clockService, sht, configManager, cfg, networkManager);
 
 bool fallbackWasActive = false;
 bool lastKnownAutoMode = DEFAULT_LIGHT_AUTO_MODE;
@@ -135,6 +137,7 @@ void setup() {
   light.restoreOnBoot(cfg.lightAutoMode && clockService.isTimeValid(), currentAutoWindowTargetPercent());
 
   moisture.begin(cfg.soilAir, cfg.soilWater, cfg.soilDepthMm);
+  lightSensor.begin(Wire);
 
   networkManager.begin();
   lastKnownWifiConnected = networkManager.isWifiConnected();
@@ -257,5 +260,6 @@ void loop() {
   fan.update(nowMs);
   light.update(nowMs);
   moisture.update(nowMs);
+  lightSensor.update(nowMs);
   ha.update(nowMs);
 }

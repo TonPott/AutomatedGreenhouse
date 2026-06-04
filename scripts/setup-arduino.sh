@@ -77,6 +77,8 @@ arduino-cli lib install WiFiNINA@2.0.1
 arduino-cli lib install "Sensirion Core@0.7.3"
 arduino-cli lib install "Sensirion I2C SHT3x@1.0.1"
 arduino-cli lib install "Adafruit BusIO@1.17.4"
+arduino-cli lib install "Adafruit Unified Sensor@1.1.15"
+arduino-cli lib install "Adafruit TSL2591 Library@1.4.5"
 arduino-cli lib install RTClib@2.1.4
 arduino-cli lib install PubSubClient@2.8.0
 arduino-cli lib install home-assistant-integration@2.1.0

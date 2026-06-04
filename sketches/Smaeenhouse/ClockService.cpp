@@ -33,7 +33,8 @@ constexpr uint16_t NTP_PORT = 123;
 constexpr uint16_t NTP_LOCAL_PORT = 2390;
 constexpr uint16_t NTP_PACKET_SIZE = 48;
 constexpr uint32_t NTP_EPOCH_OFFSET = 2208988800UL;
-constexpr uint32_t NTP_RESPONSE_TIMEOUT_MS = 1500UL;
+constexpr uint32_t NTP_RESPONSE_TIMEOUT_MS = 3000UL;
+constexpr uint32_t MIN_VALID_UNIX_TIME = 1704067200UL;  // 2024-01-01T00:00:00Z
 
 }  // namespace
 
@@ -96,9 +97,20 @@ bool ClockService::syncFromNTP() {
   }
 
   uint32_t unixUtc = 0;
-  if (!fetchNtpUnixTime(unixUtc)) {
-    Serial.println(F("ClockService NTP sync failed: no valid NTP response."));
-    return false;
+  NtpFailureReason failureReason = NtpFailureReason::None;
+  bool usedWifiModuleTime = false;
+
+  if (!fetchNtpUnixTime(unixUtc, failureReason)) {
+    Serial.print(F("ClockService UDP NTP failed: "));
+    Serial.println(ntpFailureReasonText(failureReason));
+
+    if (!fetchWifiModuleUnixTime(unixUtc)) {
+      Serial.println(F("ClockService WiFi.getTime fallback/check failed: no valid module time."));
+      return false;
+    }
+
+    usedWifiModuleTime = true;
+    Serial.println(F("ClockService WiFi.getTime fallback/check succeeded."));
   }
 
   const int32_t offsetSeconds = static_cast<int32_t>(UTC_OFFSET_SECONDS) + static_cast<int32_t>(DST_OFFSET_SECONDS);
@@ -117,7 +129,8 @@ bool ClockService::syncFromNTP() {
     configureScheduleAlarms(lightOnMinutes_, lightOffMinutes_);
   }
 
-  Serial.println(F("ClockService NTP sync successful."));
+  Serial.print(F("ClockService time sync successful: source="));
+  Serial.println(usedWifiModuleTime ? F("WiFi.getTime") : F("UDP NTP"));
 
   return true;
 }
@@ -224,60 +237,126 @@ bool ClockService::hasFault() const {
   return !rtcAvailable_ || !timeValid_;
 }
 
-bool ClockService::fetchNtpUnixTime(uint32_t& unixTimeUtc) {
-  WiFiUDP udp;
-  if (!udp.begin(NTP_LOCAL_PORT)) {
-    return false;
-  }
+bool ClockService::fetchNtpUnixTime(uint32_t& unixTimeUtc, NtpFailureReason& failureReason) {
+  failureReason = NtpFailureReason::None;
 
   IPAddress ntpIp;
   if (WiFi.hostByName(NTP_SERVER, ntpIp) != 1) {
-    udp.stop();
+    failureReason = NtpFailureReason::DnsFailed;
+    return false;
+  }
+
+  WiFiUDP udp;
+  if (!udp.begin(NTP_LOCAL_PORT)) {
+    failureReason = NtpFailureReason::UdpBeginFailed;
     return false;
   }
 
   uint8_t packetBuffer[NTP_PACKET_SIZE] = {0};
-  packetBuffer[0] = 0b11100011;
+  packetBuffer[0] = 0x23;
   packetBuffer[1] = 0;
   packetBuffer[2] = 6;
   packetBuffer[3] = 0xEC;
 
   if (!udp.beginPacket(ntpIp, NTP_PORT)) {
+    failureReason = NtpFailureReason::UdpBeginPacketFailed;
     udp.stop();
     return false;
   }
 
-  udp.write(packetBuffer, NTP_PACKET_SIZE);
+  if (udp.write(packetBuffer, NTP_PACKET_SIZE) != NTP_PACKET_SIZE) {
+    failureReason = NtpFailureReason::UdpWriteFailed;
+    udp.stop();
+    return false;
+  }
+
   if (!udp.endPacket()) {
+    failureReason = NtpFailureReason::UdpEndPacketFailed;
     udp.stop();
     return false;
   }
 
   const uint32_t startMs = millis();
+  bool sawShortResponse = false;
   while (millis() - startMs < NTP_RESPONSE_TIMEOUT_MS) {
     const int packetSize = udp.parsePacket();
-    if (packetSize >= static_cast<int>(NTP_PACKET_SIZE)) {
-      udp.read(packetBuffer, NTP_PACKET_SIZE);
-      udp.stop();
-
-      const uint32_t secondsSince1900 = (static_cast<uint32_t>(packetBuffer[40]) << 24) |
-                                        (static_cast<uint32_t>(packetBuffer[41]) << 16) |
-                                        (static_cast<uint32_t>(packetBuffer[42]) << 8) |
-                                        static_cast<uint32_t>(packetBuffer[43]);
-
-      if (secondsSince1900 <= NTP_EPOCH_OFFSET) {
-        return false;
-      }
-
-      unixTimeUtc = secondsSince1900 - NTP_EPOCH_OFFSET;
-      return true;
+    if (packetSize <= 0) {
+      delay(10);
+      continue;
     }
 
-    delay(10);
+    if (packetSize < static_cast<int>(NTP_PACKET_SIZE)) {
+      const size_t readSize = static_cast<size_t>(packetSize);
+      udp.read(packetBuffer, readSize);
+      sawShortResponse = true;
+      continue;
+    }
+
+    if (udp.read(packetBuffer, NTP_PACKET_SIZE) != NTP_PACKET_SIZE) {
+      failureReason = NtpFailureReason::ShortResponse;
+      udp.stop();
+      return false;
+    }
+
+    udp.stop();
+
+    const uint32_t secondsSince1900 = (static_cast<uint32_t>(packetBuffer[40]) << 24) |
+                                      (static_cast<uint32_t>(packetBuffer[41]) << 16) |
+                                      (static_cast<uint32_t>(packetBuffer[42]) << 8) |
+                                      static_cast<uint32_t>(packetBuffer[43]);
+
+    if (secondsSince1900 <= NTP_EPOCH_OFFSET) {
+      failureReason = NtpFailureReason::InvalidTimestamp;
+      return false;
+    }
+
+    unixTimeUtc = secondsSince1900 - NTP_EPOCH_OFFSET;
+    if (unixTimeUtc < MIN_VALID_UNIX_TIME) {
+      failureReason = NtpFailureReason::InvalidTimestamp;
+      return false;
+    }
+
+    return true;
   }
 
   udp.stop();
+  failureReason = sawShortResponse ? NtpFailureReason::ShortResponse : NtpFailureReason::MissingResponse;
   return false;
+}
+
+bool ClockService::fetchWifiModuleUnixTime(uint32_t& unixTimeUtc) const {
+  const unsigned long moduleTime = WiFi.getTime();
+  if (moduleTime < MIN_VALID_UNIX_TIME) {
+    return false;
+  }
+
+  unixTimeUtc = static_cast<uint32_t>(moduleTime);
+  return true;
+}
+
+const __FlashStringHelper* ClockService::ntpFailureReasonText(NtpFailureReason reason) const {
+  switch (reason) {
+    case NtpFailureReason::None:
+      return F("none");
+    case NtpFailureReason::DnsFailed:
+      return F("DNS lookup failed");
+    case NtpFailureReason::UdpBeginFailed:
+      return F("UDP setup failed");
+    case NtpFailureReason::UdpBeginPacketFailed:
+      return F("UDP beginPacket failed");
+    case NtpFailureReason::UdpWriteFailed:
+      return F("UDP packet write failed");
+    case NtpFailureReason::UdpEndPacketFailed:
+      return F("UDP packet send failed");
+    case NtpFailureReason::MissingResponse:
+      return F("missing UDP response");
+    case NtpFailureReason::ShortResponse:
+      return F("short UDP response");
+    case NtpFailureReason::InvalidTimestamp:
+      return F("invalid timestamp");
+  }
+
+  return F("unknown");
 }
 
 DateTime ClockService::buildNextAlarmTime(uint16_t minutesSinceMidnightValue, const DateTime& current) const {

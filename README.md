@@ -8,6 +8,7 @@ The controller manages and monitors:
 - a **12V 3-pin fan** with tachometer evaluation
 - a **dimmable grow light** via AD5263 dimmer + relay
 - a **capacitive soil moisture sensor**
+- a **CQRTSL25911 / TSL25911 cabinet light sensor**
 - a **DS3231 RTC with AT24C32 EEPROM**
 - **Home Assistant** integration via **MQTT** using **ArduinoHA**
 
@@ -165,6 +166,11 @@ The shared toolchain is intentionally long-lived. Manual project-end cleanup use
 - The grow light is dimmed through an `AD5263BRUZ50` as a digitally adjustable resistance between `Dim+` and `Dim-`; the relay remains responsible for hard switching the mains supply.
 - The fan tach signal is converted to 3.3 V logic through a **2N3904 transistor stage**. See `HARDWARE.md` for the exact signal-conditioning notes.
 - The **SQW/INT output** of the DS3231 is used for Arduino-internal light schedule alarms.
+- The CQRTSL25911 light sensor is placed inside the cabinet and is initially measurement-only. Its INT line is wired for future use, but the firmware polls it over I2C.
+
+## Measurement Data Privacy
+
+Real sensor histories and HA exports from the cabinet or room are sensitive project data. Keep timestamped measurements, calibration datasets, and analysis exports in ignored local folders such as `measurements/`, `data/`, `exports/`, `ha-history/`, or `home-assistant-history/`; do not commit them to GitHub.
 
 ## Home Assistant
 

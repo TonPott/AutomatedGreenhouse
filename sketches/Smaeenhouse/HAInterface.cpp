@@ -1,6 +1,7 @@
 #include "HAInterface.h"
 
 #include <math.h>
+#include <string.h>
 
 #include "Config.h"
 
@@ -75,6 +76,7 @@ uint8_t clampPercent(long value) {
 HAInterface::HAInterface(FanController& fanController,
                          LightController& lightController,
                          MoistureSensor& moistureSensor,
+                         LightSensor& lightSensor,
                          ClockService& clockService,
                          SHTa& sht,
                          PersistentConfigManager& configManager,
@@ -83,17 +85,22 @@ HAInterface::HAInterface(FanController& fanController,
     : fanController_(fanController),
       lightController_(lightController),
       moistureSensor_(moistureSensor),
+      lightSensor_(lightSensor),
       clockService_(clockService),
       sht_(sht),
       configManager_(configManager),
       configData_(configData),
       networkManager_(networkManager),
       device_(DEVICE_ID),
-      mqtt_(networkClient_, device_, 40),
+      mqtt_(networkClient_, device_, HA_MQTT_ENTITY_LIMIT),
       temperatureSensor_("temperature"),
       humiditySensor_("humidity"),
       soilPercentSensor_("soil_moisture_percent"),
       soilRawSensor_("soil_moisture_raw"),
+      cabinetIlluminanceSensor_("cabinet_illuminance_lux"),
+      cabinetFullSpectrumSensor_("cabinet_light_full_spectrum_raw"),
+      cabinetInfraredSensor_("cabinet_light_infrared_raw"),
+      cabinetVisibleSensor_("cabinet_light_visible_raw"),
       fanRpmSensor_("fan_rpm"),
       lightFaultReasonSensor_("light_fault_reason"),
       lightFaultBinarySensor_("light_fault"),
@@ -101,6 +108,7 @@ HAInterface::HAInterface(FanController& fanController,
       shtFaultBinarySensor_("sht_fault"),
       rtcFaultBinarySensor_("rtc_fault"),
       eepromFaultBinarySensor_("eeprom_fault"),
+      lightSensorFaultBinarySensor_("light_sensor_fault"),
       fanSwitch_("fan"),
       fanAutoModeSwitch_("fan_auto_mode"),
       lightAutoModeSwitch_("light_auto_mode"),
@@ -151,6 +159,13 @@ void HAInterface::begin() {
 
   soilRawSensor_.setName("Soil Moisture Raw");
 
+  cabinetIlluminanceSensor_.setName("Cabinet Illuminance");
+  cabinetIlluminanceSensor_.setUnitOfMeasurement("lx");
+
+  cabinetFullSpectrumSensor_.setName("Cabinet Light Full Spectrum Raw");
+  cabinetInfraredSensor_.setName("Cabinet Light Infrared Raw");
+  cabinetVisibleSensor_.setName("Cabinet Light Visible Raw");
+
   fanRpmSensor_.setName("Fan RPM");
   fanRpmSensor_.setUnitOfMeasurement("rpm");
 
@@ -161,6 +176,7 @@ void HAInterface::begin() {
   shtFaultBinarySensor_.setName("SHT Fault");
   rtcFaultBinarySensor_.setName("RTC Fault");
   eepromFaultBinarySensor_.setName("EEPROM Fault");
+  lightSensorFaultBinarySensor_.setName("Light Sensor Fault");
 
   fanSwitch_.setName("Fan");
   fanAutoModeSwitch_.setName("Fan Auto Mode");
@@ -249,7 +265,7 @@ void HAInterface::begin() {
 
   soilDepthNumber_.setName("Soil Depth mm");
   soilDepthNumber_.setUnitOfMeasurement("mm");
-  soilDepthNumber_.setMin(static_cast<float>(SOIL_DEPTH_MIN_MM));
+  soilDepthNumber_.setMin(static_cast<float>(SOIL_MIN_VALID_DEPTH_MM));
   soilDepthNumber_.setMax(static_cast<float>(SOIL_DEPTH_MAX_MM));
   soilDepthNumber_.setStep(1.0f);
 
@@ -306,26 +322,7 @@ void HAInterface::begin() {
   pendingHaDimTargetPercent_ = 100;
   pendingHaDimDurationMinutes_ = configData_.defaultLightDimMinutes;
 
-  const bool mqttBeginOk = mqtt_.begin(MQTT_HOST,
-                                       static_cast<uint16_t>(MQTT_PORT),
-                                       MQTT_USERNAME,
-                                       MQTT_PASSWORD);
-  Serial.print(F("HAMqtt begin: initialized="));
-  Serial.print(mqttBeginOk ? F("YES") : F("NO"));
-  Serial.print(F(", broker="));
-  Serial.print(MQTT_HOST);
-  Serial.print(F(", connectedNow="));
-  Serial.println(mqtt_.isConnected() ? F("YES") : F("NO"));
-
-  if (mqttBeginOk) {
-    mqtt_.loop();
-    Serial.print(F("HAMqtt first connect attempt: connected="));
-    Serial.print(mqtt_.isConnected() ? F("YES") : F("NO"));
-    Serial.print(F(", state="));
-    Serial.println(static_cast<int>(mqtt_.getState()));
-  } else {
-    Serial.println(F("HAMqtt setup failed before any broker connection attempt."));
-  }
+  beginMqttConnection(F("initial"));
 
   wasWifiConnected_ = networkManager_.isWifiConnected();
   wasMqttConnected_ = mqtt_.isConnected();
@@ -339,15 +336,7 @@ void HAInterface::update(uint32_t nowMs) {
     if (wifiConnected) {
       Serial.println(F("WiFi connected, retrying MQTT setup."));
       mqtt_.disconnect();
-
-      const bool mqttBeginOk = mqtt_.begin(MQTT_HOST,
-                                           static_cast<uint16_t>(MQTT_PORT),
-                                           MQTT_USERNAME,
-                                           MQTT_PASSWORD);
-      Serial.print(F("HAMqtt re-begin after WiFi connect: initialized="));
-      Serial.print(mqttBeginOk ? F("YES") : F("NO"));
-      Serial.print(F(", connectedNow="));
-      Serial.println(mqtt_.isConnected() ? F("YES") : F("NO"));
+      beginMqttConnection(F("wifi connected"));
     } else {
       Serial.println(F("WiFi disconnected."));
     }
@@ -358,6 +347,12 @@ void HAInterface::update(uint32_t nowMs) {
   if (!networkManager_.isWifiConnected() && mqtt_.isConnected()) {
     device_.setAvailability(false);
     mqtt_.disconnect();
+  }
+
+  if (networkManager_.isWifiConnected() &&
+      !mqtt_.isConnected() &&
+      (nowMs - lastMqttReconnectAttemptMs_) >= MQTT_RECONNECT_INTERVAL_MS) {
+    beginMqttConnection(F("periodic"));
   }
 
   mqtt_.loop();
@@ -379,6 +374,39 @@ void HAInterface::update(uint32_t nowMs) {
   }
 
   publishSensorValues(false);
+}
+
+bool HAInterface::beginMqttConnection(const __FlashStringHelper* reason) {
+  lastMqttReconnectAttemptMs_ = millis();
+
+  if (!networkManager_.isWifiConnected()) {
+    Serial.print(F("HAMqtt reconnect skipped: reason="));
+    Serial.print(reason);
+    Serial.println(F(", WiFi not connected."));
+    return false;
+  }
+
+  const bool mqttBeginOk = mqtt_.begin(MQTT_HOST,
+                                       static_cast<uint16_t>(MQTT_PORT),
+                                       MQTT_USERNAME,
+                                       MQTT_PASSWORD);
+
+  Serial.print(F("HAMqtt begin: reason="));
+  Serial.print(reason);
+  Serial.print(F(", initialized="));
+  Serial.print(mqttBeginOk ? F("YES") : F("NO"));
+  Serial.print(F(", broker="));
+  Serial.print(MQTT_HOST);
+  Serial.print(F(", connectedNow="));
+  Serial.print(mqtt_.isConnected() ? F("YES") : F("NO"));
+  Serial.print(F(", state="));
+  Serial.println(static_cast<int>(mqtt_.getState()));
+
+  if (mqttBeginOk) {
+    mqtt_.loop();
+  }
+
+  return mqttBeginOk;
 }
 
 void HAInterface::onMqttConnected() {
@@ -426,6 +454,16 @@ void HAInterface::publishSensorValues(bool force) {
       // keep publishing raw readings and avoid refreshing a misleading percent value.
     }
     lastSoilPublishMs_ = nowMs;
+  }
+
+  if (force || (nowMs - lastLightSensorPublishMs_ >= LIGHT_SENSOR_PUBLISH_INTERVAL_MS)) {
+    if (lightSensor_.hasValidSample()) {
+      cabinetIlluminanceSensor_.setValue(lightSensor_.getLastLux());
+      cabinetFullSpectrumSensor_.setValue(static_cast<int32_t>(lightSensor_.getLastFullSpectrum()));
+      cabinetInfraredSensor_.setValue(static_cast<int32_t>(lightSensor_.getLastInfrared()));
+      cabinetVisibleSensor_.setValue(static_cast<int32_t>(lightSensor_.getLastVisible()));
+    }
+    lastLightSensorPublishMs_ = nowMs;
   }
 
   if (force || (nowMs - lastFanPublishMs_ >= FAN_RPM_PUBLISH_INTERVAL_MS)) {
@@ -481,7 +519,27 @@ void HAInterface::publishFaultStates(bool force) {
   shtFaultBinarySensor_.setState(sht_.hasFault(), force);
   rtcFaultBinarySensor_.setState(clockService_.hasFault(), force);
   eepromFaultBinarySensor_.setState(configManager_.hasFault(), force);
-  lightFaultReasonSensor_.setValue(lightController_.getLightFaultReason());
+  lightSensorFaultBinarySensor_.setState(lightSensor_.hasFault(), force);
+  publishLightFaultReason(force);
+}
+
+void HAInterface::publishLightFaultReason(bool force) {
+  const char* reason = lightController_.getLightFaultReason();
+  if (reason == nullptr) {
+    reason = "";
+  }
+
+  if (!force &&
+      lightFaultReasonPublished_ &&
+      lastPublishedLightFaultReason_ != nullptr &&
+      strcmp(reason, lastPublishedLightFaultReason_) == 0) {
+    return;
+  }
+
+  if (lightFaultReasonSensor_.setValue(reason)) {
+    lastPublishedLightFaultReason_ = reason;
+    lightFaultReasonPublished_ = true;
+  }
 }
 
 void HAInterface::onFanSwitchCommandStatic(bool state, HASwitch* /*sender*/) {
