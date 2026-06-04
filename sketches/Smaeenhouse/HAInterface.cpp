@@ -1,6 +1,7 @@
 #include "HAInterface.h"
 
 #include <math.h>
+#include <string.h>
 
 #include "Config.h"
 
@@ -91,7 +92,7 @@ HAInterface::HAInterface(FanController& fanController,
       configData_(configData),
       networkManager_(networkManager),
       device_(DEVICE_ID),
-      mqtt_(networkClient_, device_, 40),
+      mqtt_(networkClient_, device_, HA_MQTT_ENTITY_LIMIT),
       temperatureSensor_("temperature"),
       humiditySensor_("humidity"),
       soilPercentSensor_("soil_moisture_percent"),
@@ -519,7 +520,26 @@ void HAInterface::publishFaultStates(bool force) {
   rtcFaultBinarySensor_.setState(clockService_.hasFault(), force);
   eepromFaultBinarySensor_.setState(configManager_.hasFault(), force);
   lightSensorFaultBinarySensor_.setState(lightSensor_.hasFault(), force);
-  lightFaultReasonSensor_.setValue(lightController_.getLightFaultReason());
+  publishLightFaultReason(force);
+}
+
+void HAInterface::publishLightFaultReason(bool force) {
+  const char* reason = lightController_.getLightFaultReason();
+  if (reason == nullptr) {
+    reason = "";
+  }
+
+  if (!force &&
+      lightFaultReasonPublished_ &&
+      lastPublishedLightFaultReason_ != nullptr &&
+      strcmp(reason, lastPublishedLightFaultReason_) == 0) {
+    return;
+  }
+
+  if (lightFaultReasonSensor_.setValue(reason)) {
+    lastPublishedLightFaultReason_ = reason;
+    lightFaultReasonPublished_ = true;
+  }
 }
 
 void HAInterface::onFanSwitchCommandStatic(bool state, HASwitch* /*sender*/) {

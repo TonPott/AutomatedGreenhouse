@@ -27,6 +27,7 @@ constexpr uint32_t MQTT_RECONNECT_INTERVAL_MS = 10000UL;
 constexpr uint32_t NTP_RETRY_INTERVAL_MS = 60000UL;
 constexpr uint32_t MQTT_FALLBACK_TIMEOUT_MS = 600000UL;  // 10 minutes
 constexpr uint32_t NTP_RESYNC_INTERVAL_MS = 86400000UL;  // 24 hours
+constexpr uint8_t HA_MQTT_ENTITY_LIMIT = 48;
 
 // AD5263 dimmer hardware
 constexpr uint8_t AD5263_I2C_ADDRESS = 0x2C;

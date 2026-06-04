@@ -69,6 +69,7 @@ private:
   bool beginMqttConnection(const __FlashStringHelper* reason);
   void publishSwitchAndLightStates();
   void publishFaultStates(bool force = false);
+  void publishLightFaultReason(bool force);
 
   FanController& fanController_;
   LightController& lightController_;
@@ -136,6 +137,8 @@ private:
 
   bool wasMqttConnected_ = false;
   bool wasWifiConnected_ = false;
+  bool lightFaultReasonPublished_ = false;
+  const char* lastPublishedLightFaultReason_ = nullptr;
 
   uint32_t lastMqttReconnectAttemptMs_ = 0;
   uint32_t lastTempHumPublishMs_ = 0;

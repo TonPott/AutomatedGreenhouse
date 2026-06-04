@@ -706,6 +706,7 @@ Separate soil capture buttons such as `capture_soil_air` or `capture_soil_water`
 
 ### Rules
 - on reconnect, publish all relevant states again
+- the ArduinoHA MQTT entity registration limit must cover every documented production entity plus reserve
 - light and switch states are sufficient; no separate sensor for actual light brightness or light mode is required
 - `start_ha_dim` validates:
   - target 0..100
