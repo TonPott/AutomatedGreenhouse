@@ -11,6 +11,8 @@ This file tracks open work, next steps, validation needs, and optional improveme
 
 ## Firmware Follow-Up
 
+- Harden WiFi reconnect behavior after sketch upload or module state transitions, using the `NetworkDiagnosticsTest` disconnect-and-retry behavior as reference.
+- Improve production NTP diagnostics so failures distinguish DNS, UDP send, missing UDP response, invalid timestamp, and `WiFi.getTime()` module-time fallback/check results.
 - Check whether invalid `soil_moisture_percent` can be represented as truly unavailable in ArduinoHA.
 - Current fallback behavior: keep publishing raw values and avoid refreshing a misleading percent value if the percent calculation is invalid.
 - Consider whether changing `soil_air`, `soil_water`, or `soil_depth_mm` from HA should trigger an immediate `sampleNow()` and state publish instead of waiting for the next interval or manual raw read.
@@ -30,6 +32,7 @@ This file tracks open work, next steps, validation needs, and optional improveme
 - Implement or update HA dashboard/scripts separately from this firmware branch.
 - Add HA automations for the documented `button.read_soil_raw_value` calibration workflow.
 - Confirm that fault entities are displayed clearly in HA.
+- Ensure any future diagnostic HA device uses diagnostic-specific entity IDs and does not reuse production MQTT discovery unique IDs.
 - Use HA history to design future lux-hour assistance from cabinet illuminance, the outside brightness sensor, grow-light brightness, and time of day.
 
 ## Optional Improvements
@@ -40,6 +43,8 @@ This file tracks open work, next steps, validation needs, and optional improveme
 
 ## Done / Recently Aligned
 
+- Network diagnostics sketch added for WiFi, DNS, MQTT, Home Assistant discovery, and NTP checks.
+- External NTP validation confirmed `pool.ntp.org` as the preferred configured NTP server.
 - Documentation translated to English.
 - AD5263 mapping aligned to tested lamp direction.
 - Soil entity names aligned to `soil_moisture_percent` and `soil_moisture_raw`.

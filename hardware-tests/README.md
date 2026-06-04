@@ -14,11 +14,14 @@ Hardware tests normally run locally on real hardware. They can document expected
 - `HAInterfaceTest`
 - `LightControllerTest`
 - `MoistureSensorTest`
+- `NetworkDiagnosticsTest`
 - `NetworkManagerTest`
 - `PersistentConfigTest`
 - `ShtModuleTest`
 
 `ClockServiceTest`, `NetworkManagerTest`, and `HAInterfaceTest` use credential-dependent modules. Compile checks can temporarily use the production `Credentials.example.h`; uploads to real hardware need real local credentials copied into the test folder or otherwise provided.
+
+`NetworkDiagnosticsTest` is different: it does not include production credentials. Edit the `TEST_*` placeholders at the top of its sketch locally before uploading.
 
 ## Compile Checks
 

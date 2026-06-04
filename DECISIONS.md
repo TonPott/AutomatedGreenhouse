@@ -155,6 +155,38 @@ Status: accepted
 - `ROADMAP.md`
 - `DECISIONS.md`
 
+## 2026-06 – Network diagnostics stay separate from production firmware
+
+Status: accepted
+
+### Context
+
+- Real hardware testing showed that network failures can look like firmware faults when WiFi, DNS, MQTT, Home Assistant discovery, and NTP are tested only through the production sketch.
+- After uploading a new sketch while an older network test is running, the Nano 33 IoT / WiFiNINA stack may keep an old connection state long enough for the first WiFi connection attempt to fail.
+- Home Assistant MQTT discovery uses entity unique IDs for registry identity, so diagnostic entities must not reuse production unique IDs.
+- `WiFi.getTime()` can be used as an independent WiFiNINA module time check alongside explicit UDP NTP requests.
+
+### Decision
+
+- Keep the network diagnostics sketch as a standalone hardware test, not as production runtime logic.
+- Use test-local placeholder credentials and do not include production `Credentials.h`.
+- Use diagnostic-specific device and entity identifiers.
+- Prefer `pool.ntp.org` as the default external NTP server for firmware and diagnostics.
+- Keep WiFi reconnect hardening and richer NTP error reporting as firmware follow-up work.
+
+### Consequences
+
+- Network troubleshooting can separate WiFi/DNS/MQTT/HA/NTP behavior from sensors, actuators, RTC, EEPROM, and dimmer hardware.
+- Production firmware remains smaller and focused.
+- Future HA diagnostic devices should avoid unique ID collisions with production entities.
+- NTP troubleshooting can compare explicit UDP requests with the WiFiNINA module time source.
+
+### Affected Areas
+
+- `hardware-tests/NetworkDiagnosticsTest/NetworkDiagnosticsTest.ino`
+- `hardware-tests/NetworkDiagnosticsTest/README.md`
+- `ROADMAP.md`
+
 ## 2026-05 – Soil moisture calibration is HA-guided and firmware remains stateless for calibration workflow
 
 Status: accepted
