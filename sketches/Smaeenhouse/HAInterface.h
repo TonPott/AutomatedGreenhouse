@@ -66,6 +66,7 @@ private:
   void handleReadSoilRawButtonCommand();
   void handleStartHaDimButtonCommand();
 
+  bool beginMqttConnection(const __FlashStringHelper* reason);
   void publishSwitchAndLightStates();
   void publishFaultStates(bool force = false);
 
@@ -136,6 +137,7 @@ private:
   bool wasMqttConnected_ = false;
   bool wasWifiConnected_ = false;
 
+  uint32_t lastMqttReconnectAttemptMs_ = 0;
   uint32_t lastTempHumPublishMs_ = 0;
   uint32_t lastSoilPublishMs_ = 0;
   uint32_t lastLightSensorPublishMs_ = 0;

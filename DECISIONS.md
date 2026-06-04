@@ -172,14 +172,15 @@ Status: accepted
 - Use test-local placeholder credentials and do not include production `Credentials.h`.
 - Use diagnostic-specific device and entity identifiers.
 - Prefer `pool.ntp.org` as the default external NTP server for firmware and diagnostics.
-- Keep WiFi reconnect hardening and richer NTP error reporting as firmware follow-up work.
+- Keep diagnostic HA entities out of production firmware.
+- Implement production WiFi reconnect hardening, periodic MQTT reconnect, and richer NTP error reporting without changing production HA entity IDs.
 
 ### Consequences
 
 - Network troubleshooting can separate WiFi/DNS/MQTT/HA/NTP behavior from sensors, actuators, RTC, EEPROM, and dimmer hardware.
-- Production firmware remains smaller and focused.
+- Production firmware remains focused, but now carries the connection hardening learned from the diagnostics sketch.
 - Future HA diagnostic devices should avoid unique ID collisions with production entities.
-- NTP troubleshooting can compare explicit UDP requests with the WiFiNINA module time source.
+- NTP troubleshooting can compare explicit UDP requests with the WiFiNINA module time source, and production serial logs now report the relevant failure class.
 
 ### Affected Areas
 

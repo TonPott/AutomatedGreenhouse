@@ -487,6 +487,21 @@ Optionally additionally:
 ### 9.5 NTP
 The firmware should actively synchronize via NTP and set the RTC from it.
 
+Default NTP server:
+
+- `pool.ntp.org`
+
+NTP diagnostics should distinguish these failure classes in serial logs:
+
+- DNS lookup failure
+- UDP socket setup failure
+- UDP packet send failure
+- missing UDP response
+- short UDP response
+- invalid NTP timestamp
+
+After an explicit UDP NTP failure, the firmware may use `WiFi.getTime()` as a secondary WiFiNINA module-time fallback/check. This fallback must not add HA entities.
+
 After successful time sync, the DS3231 alarm registers should be rewritten.
 
 ## 10. Cabinet Light Sensor
@@ -647,6 +662,16 @@ The device reports availability via MQTT and uses LWT.
 
 ### 12.4 Reconnect
 On WiFi/MQTT outage, reconnect is automatic.
+
+WiFi reconnect behavior must account for stale WiFiNINA connection state after sketch upload or module state transitions:
+
+- force a WiFi disconnect before a reconnect sequence
+- wait a short settle interval after disconnect
+- use a bounded number of connection attempts
+- use a connect timeout for each attempt
+- keep diagnostics compact enough for serial troubleshooting
+
+MQTT reconnect must be retried periodically while WiFi is connected. It must not depend only on a WiFi state transition.
 
 ### 12.5 Fallback After Connection Loss
 If the connection is not restored for more than 10 minutes, a configurable behavior should apply for the light:

@@ -321,26 +321,7 @@ void HAInterface::begin() {
   pendingHaDimTargetPercent_ = 100;
   pendingHaDimDurationMinutes_ = configData_.defaultLightDimMinutes;
 
-  const bool mqttBeginOk = mqtt_.begin(MQTT_HOST,
-                                       static_cast<uint16_t>(MQTT_PORT),
-                                       MQTT_USERNAME,
-                                       MQTT_PASSWORD);
-  Serial.print(F("HAMqtt begin: initialized="));
-  Serial.print(mqttBeginOk ? F("YES") : F("NO"));
-  Serial.print(F(", broker="));
-  Serial.print(MQTT_HOST);
-  Serial.print(F(", connectedNow="));
-  Serial.println(mqtt_.isConnected() ? F("YES") : F("NO"));
-
-  if (mqttBeginOk) {
-    mqtt_.loop();
-    Serial.print(F("HAMqtt first connect attempt: connected="));
-    Serial.print(mqtt_.isConnected() ? F("YES") : F("NO"));
-    Serial.print(F(", state="));
-    Serial.println(static_cast<int>(mqtt_.getState()));
-  } else {
-    Serial.println(F("HAMqtt setup failed before any broker connection attempt."));
-  }
+  beginMqttConnection(F("initial"));
 
   wasWifiConnected_ = networkManager_.isWifiConnected();
   wasMqttConnected_ = mqtt_.isConnected();
@@ -354,15 +335,7 @@ void HAInterface::update(uint32_t nowMs) {
     if (wifiConnected) {
       Serial.println(F("WiFi connected, retrying MQTT setup."));
       mqtt_.disconnect();
-
-      const bool mqttBeginOk = mqtt_.begin(MQTT_HOST,
-                                           static_cast<uint16_t>(MQTT_PORT),
-                                           MQTT_USERNAME,
-                                           MQTT_PASSWORD);
-      Serial.print(F("HAMqtt re-begin after WiFi connect: initialized="));
-      Serial.print(mqttBeginOk ? F("YES") : F("NO"));
-      Serial.print(F(", connectedNow="));
-      Serial.println(mqtt_.isConnected() ? F("YES") : F("NO"));
+      beginMqttConnection(F("wifi connected"));
     } else {
       Serial.println(F("WiFi disconnected."));
     }
@@ -373,6 +346,12 @@ void HAInterface::update(uint32_t nowMs) {
   if (!networkManager_.isWifiConnected() && mqtt_.isConnected()) {
     device_.setAvailability(false);
     mqtt_.disconnect();
+  }
+
+  if (networkManager_.isWifiConnected() &&
+      !mqtt_.isConnected() &&
+      (nowMs - lastMqttReconnectAttemptMs_) >= MQTT_RECONNECT_INTERVAL_MS) {
+    beginMqttConnection(F("periodic"));
   }
 
   mqtt_.loop();
@@ -394,6 +373,39 @@ void HAInterface::update(uint32_t nowMs) {
   }
 
   publishSensorValues(false);
+}
+
+bool HAInterface::beginMqttConnection(const __FlashStringHelper* reason) {
+  lastMqttReconnectAttemptMs_ = millis();
+
+  if (!networkManager_.isWifiConnected()) {
+    Serial.print(F("HAMqtt reconnect skipped: reason="));
+    Serial.print(reason);
+    Serial.println(F(", WiFi not connected."));
+    return false;
+  }
+
+  const bool mqttBeginOk = mqtt_.begin(MQTT_HOST,
+                                       static_cast<uint16_t>(MQTT_PORT),
+                                       MQTT_USERNAME,
+                                       MQTT_PASSWORD);
+
+  Serial.print(F("HAMqtt begin: reason="));
+  Serial.print(reason);
+  Serial.print(F(", initialized="));
+  Serial.print(mqttBeginOk ? F("YES") : F("NO"));
+  Serial.print(F(", broker="));
+  Serial.print(MQTT_HOST);
+  Serial.print(F(", connectedNow="));
+  Serial.print(mqtt_.isConnected() ? F("YES") : F("NO"));
+  Serial.print(F(", state="));
+  Serial.println(static_cast<int>(mqtt_.getState()));
+
+  if (mqttBeginOk) {
+    mqtt_.loop();
+  }
+
+  return mqttBeginOk;
 }
 
 void HAInterface::onMqttConnected() {

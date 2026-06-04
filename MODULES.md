@@ -571,6 +571,7 @@ Management of RTC_DS3231, its alarms, and NTP synchronization.
 - `rtcAvailable`
 - `timeValid`
 - `alarmsConfigured`
+- internal NTP failure reason for serial diagnostics
 
 ### API
 - `void begin();`
@@ -607,6 +608,10 @@ enum class ClockAlarmEvent {
 - manual sync command from HA possible
 - reprogram alarm registers after time sync or configuration change
 - I²C access only outside the ISR
+- default NTP server remains `pool.ntp.org`
+- serial diagnostics distinguish DNS, UDP setup/send, missing response, short response, and invalid timestamp failures
+- `WiFi.getTime()` may be used as a secondary module-time fallback/check after explicit UDP NTP failure
+- NTP diagnostics do not create additional HA entities
 
 ## 11. NetworkManager
 
@@ -625,6 +630,8 @@ Manage WiFi and MQTT connection.
 - `mqttConnected`
 - `lastConnectionOkMs`
 - `fallbackActive`
+- WiFi reconnect state
+- WiFi reconnect attempt counter
 
 ### API
 - `void begin();`
@@ -636,6 +643,8 @@ Manage WiFi and MQTT connection.
 
 ### Rules
 - periodic reconnect attempts
+- WiFi reconnect starts with forced disconnect and a short settle interval
+- WiFi connect attempts are bounded by configured attempt count and timeout constants
 - online = WiFi + MQTT ok
 - if offline >10 min: `fallbackActive = true`
 - on successful connection again: `fallbackActive = false`
@@ -650,6 +659,7 @@ Mapping of all HA entities and processing of HA commands.
 - publishing states and measurements
 - receiving commands
 - state re-publish after MQTT reconnect
+- periodic MQTT reconnect attempts while WiFi is connected
 
 ### Required References
 The module should be able to access other modules, for example by reference in the constructor:

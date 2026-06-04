@@ -28,7 +28,21 @@ public:
   bool hasFault() const;
 
 private:
-  bool fetchNtpUnixTime(uint32_t& unixTimeUtc);
+  enum class NtpFailureReason : uint8_t {
+    None = 0,
+    DnsFailed,
+    UdpBeginFailed,
+    UdpBeginPacketFailed,
+    UdpWriteFailed,
+    UdpEndPacketFailed,
+    MissingResponse,
+    ShortResponse,
+    InvalidTimestamp
+  };
+
+  bool fetchNtpUnixTime(uint32_t& unixTimeUtc, NtpFailureReason& failureReason);
+  bool fetchWifiModuleUnixTime(uint32_t& unixTimeUtc) const;
+  const __FlashStringHelper* ntpFailureReasonText(NtpFailureReason reason) const;
   DateTime buildNextAlarmTime(uint16_t minutesSinceMidnight, const DateTime& current) const;
   bool configureAlarm1ForNextOnEvent();
   bool configureAlarm2ForNextOffEvent();
