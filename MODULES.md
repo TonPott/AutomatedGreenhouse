@@ -81,6 +81,7 @@ Central compile-time constants.
 - `DEFAULT_SOIL_AIR`
 - `DEFAULT_SOIL_WATER`
 - `DEFAULT_SOIL_DEPTH_MM`
+- `SOIL_DEPTH_MIN_MM = 0`
 - `SOIL_REFERENCE_DEPTH_MM = 120`
 - `SOIL_MIN_VALID_DEPTH_MM = 20`
 - `SOIL_ADC_MIN = 0`
@@ -89,7 +90,8 @@ Central compile-time constants.
 These soil constants complement the existing soil default values and do not replace them:
 
 - `SOIL_REFERENCE_DEPTH_MM` is the reference depth at which water corresponds to `100 %`.
-- `SOIL_MIN_VALID_DEPTH_MM` is the lower limit below which the calculated percent value becomes invalid/unavailable.
+- `SOIL_DEPTH_MIN_MM` is the technical/persistence lower bound and defensive lower bound for stored or injected values.
+- `SOIL_MIN_VALID_DEPTH_MM` is the first physical sensor marking, the minimum meaningful insertion depth, the normal Home Assistant UI minimum, and the lower limit below which the calculated percent value becomes invalid/unavailable.
 - `SOIL_ADC_MIN` and `SOIL_ADC_MAX` are internal defensive limits for ADC raw values.
 
 - `SOIL_PUBLISH_INTERVAL_MS = 10000`
@@ -483,6 +485,8 @@ Reading and converting the soil moisture sensor.
 - internal ADC raw values may defensively be constrained to `SOIL_ADC_MIN..SOIL_ADC_MAX` (`0..4095`)
 - `soilAir` and `soilWater` remain persistent HA configuration values in the expected project range `0..1000` with step `1`
 - `soilDepth` is an active correction parameter, not only an informational value
+- HA normally exposes `soilDepth` as `20..120 mm`
+- values below `20 mm` remain possible only as defensive stored/injected invalid state, not as a normal UI input path
 - if `soilDepth < SOIL_MIN_VALID_DEPTH_MM`, the percent value is invalid/unavailable; the raw value may still be published
 - no knowledge of the HA calibration routine is required
 - no firmware buttons such as `capture_soil_air` or `capture_soil_water`
@@ -491,6 +495,7 @@ Reading and converting the soil moisture sensor.
 Definitions:
 
 - `SOIL_REFERENCE_DEPTH_MM = 120`
+- `SOIL_DEPTH_MIN_MM = 0`
 - `SOIL_MIN_VALID_DEPTH_MM = 20`
 - `soilAir`: raw value with sensor completely in air
 - `soilWater`: raw value with sensor in water at 120 mm reference depth
@@ -608,6 +613,7 @@ enum class ClockAlarmEvent {
 - manual sync command from HA possible
 - reprogram alarm registers after time sync or configuration change
 - I²C access only outside the ISR
+- current UDP NTP sync may block briefly while waiting for a response; this is acceptable during boot, manual sync, and daily resync
 - default NTP server remains `pool.ntp.org`
 - serial diagnostics distinguish DNS, UDP setup/send, missing response, short response, and invalid timestamp failures
 - `WiFi.getTime()` may be used as a secondary module-time fallback/check after explicit UDP NTP failure

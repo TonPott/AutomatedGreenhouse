@@ -172,8 +172,12 @@ Documentation may include synthetic, anonymized, or highly summarized examples w
 - Name: `light_hard_power_off`
 - Direction: HA ↔ Arduino
 - Meaning:
+  - always-available safety override
+  - may act in both Arduino Auto Mode and HA-controlled mode
   - switches the relay immediately
   - dimmer state is retained internally
+- Dashboard note:
+  - should not be hidden in the associated light/control cards based on light mode
 
 ### Fallback Behavior
 - Entity type: `switch`
@@ -266,14 +270,17 @@ Limits:
 
 - `soil_air`: min 0, max 1000, step 1
 - `soil_water`: min 0, max 1000, step 1
-- `soil_depth_mm`: user-entered millimeter value with project-defined limits
+- `soil_depth_mm`: normal HA user-facing range 20..120 mm, step 1
 
 Note:
 
 - `soil_air` and `soil_water` use the expected real project range; air values are expected below approx. 900.
 - The firmware may set separate hard internal ADC safety limits to `0..4095`.
 - `soil_depth_mm` is an active correction parameter, not merely informational.
+- `SOIL_DEPTH_MIN_MM = 0` remains the technical/persistence lower bound and defensive lower bound for stored or injected values.
+- `SOIL_MIN_VALID_DEPTH_MM = 20` is the first physical sensor marking, the minimum meaningful insertion depth, and the Home Assistant UI minimum.
 - Values below `20 mm` are invalid for percent calculation because the first physical sensor marking is at `20 mm`.
+- Values below `20 mm` are only a defensive invalid state, not a normal UI input path.
 - Water reference is `120 mm`.
 
 Conceptual percent calculation:

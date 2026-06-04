@@ -265,7 +265,7 @@ void HAInterface::begin() {
 
   soilDepthNumber_.setName("Soil Depth mm");
   soilDepthNumber_.setUnitOfMeasurement("mm");
-  soilDepthNumber_.setMin(static_cast<float>(SOIL_DEPTH_MIN_MM));
+  soilDepthNumber_.setMin(static_cast<float>(SOIL_MIN_VALID_DEPTH_MM));
   soilDepthNumber_.setMax(static_cast<float>(SOIL_DEPTH_MAX_MM));
   soilDepthNumber_.setStep(1.0f);
 

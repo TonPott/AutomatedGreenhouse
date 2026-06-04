@@ -38,6 +38,8 @@ This file tracks open work, next steps, validation needs, and optional improveme
 
 ## Optional Improvements
 
+- Consider replacing the brief blocking UDP NTP wait with a non-blocking NTP state machine.
+- Consider introducing a single machine-readable dependency source used by setup and check scripts. Keep `libraries.txt` as human-readable dependency documentation unless or until that source is introduced.
 - Consider a dedicated validity indicator for soil percent if HA cannot show unavailable cleanly.
 - Consider a compact diagnostic view for current AD5263 codes or derived dimmer resistance, if useful later.
 - Consider a small decision-log review before major future refactors.

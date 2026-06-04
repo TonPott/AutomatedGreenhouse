@@ -234,12 +234,12 @@ Instead:
 ### 6.10 Hard Power Off
 There is an additional separate HA switch/command for hard power off.
 
+`light_hard_power_off` is an always-available safety override and may act in both Arduino Auto Mode and HA-controlled mode. It should not be hidden in the associated light/control cards based on light mode.
+
 It should:
 
 - switch only the relay immediately
 - keep the internal dimmer state
-
-This command is only relevant in HA-controlled operation.
 
 ### 6.11 SHDN Usage
 
@@ -432,6 +432,13 @@ Reason:
 - The first physical sensor marking is at `20 mm`.
 - Measurements below that are considered unreliable.
 
+Constant meanings:
+
+- `SOIL_DEPTH_MIN_MM = 0` is the technical/persistence lower bound and defensive lower bound for stored or injected values.
+- `SOIL_MIN_VALID_DEPTH_MM = 20` is the first physical sensor marking, the minimum meaningful insertion depth, and the normal Home Assistant UI minimum.
+
+Home Assistant normally exposes `number.soil_depth_mm` as `20..120 mm`. Values below `20 mm` are a defensive invalid state, not a normal user input path.
+
 Firmware behavior:
 
 - If `soil_depth_mm < 20`, `sensor.soil_moisture_percent` should be treated as invalid or unavailable.
@@ -501,6 +508,8 @@ NTP diagnostics should distinguish these failure classes in serial logs:
 - invalid NTP timestamp
 
 After an explicit UDP NTP failure, the firmware may use `WiFi.getTime()` as a secondary WiFiNINA module-time fallback/check. This fallback must not add HA entities.
+
+UDP NTP sync may block briefly while waiting for a response during boot, manual sync, or daily resync. This is acceptable for now because it happens only during those sync attempts.
 
 After successful time sync, the DS3231 alarm registers should be rewritten.
 

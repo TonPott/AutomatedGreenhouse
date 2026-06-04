@@ -163,6 +163,8 @@ $RequiredLibraries = @(
     "Sensirion Core",
     "Sensirion I2C SHT3x",
     "Adafruit BusIO",
+    "Adafruit Unified Sensor",
+    "Adafruit TSL2591 Library",
     "RTClib",
     "PubSubClient",
     "home-assistant-integration",
