@@ -4,6 +4,39 @@ This file records important design, hardware, and architecture decisions for the
 It explains why the current design looks the way it does.
 It does not replace `README.md`, `SPEC.md`, `MODULES.md`, or `ROADMAP.md`.
 
+## 2026-05 – Cabinet light sensor starts as measurement-only
+
+Status: accepted
+
+### Context
+
+- The CQRTSL25911 sensor can only be placed inside the plant cabinet.
+- When the grow light is on, the sensor measures the combined cabinet light environment and cannot independently evaluate room ambient light.
+- A future light-sum design should also consider the outside brightness sensor that already exists in Home Assistant.
+
+### Decision
+
+- Integrate the CQRTSL25911 / TSL25911 first as a measurement-only firmware module.
+- Publish cabinet illuminance and raw light channels to Home Assistant.
+- Keep the existing Arduino schedule, HA dimming interface, and fallback behavior unchanged.
+- Prepare the sensor INT line physically, but use polling in the initial firmware.
+- Treat real measurement histories and HA exports as sensitive local data that must not be committed.
+
+### Consequences
+
+- The sensor can be logged in HA before any automatic control logic is designed.
+- Future lux-hour compensation should be HA-first and should use existing HA dimming entities while `light_auto_mode = OFF`.
+- Standalone/fallback lux-based behavior remains future work and must be designed explicitly before implementation.
+
+### Affected Areas
+
+- `SPEC.md`
+- `MODULES.md`
+- `HARDWARE.md`
+- `docs/entity-model.md`
+- `sketches/Smaeenhouse/LightSensor.*`
+- `sketches/Smaeenhouse/HAInterface.*`
+
 ## 2026-05 – AD5263 replaces the old PWM/RC/PC817 dimmer concept
 
 Status: accepted
@@ -121,6 +154,38 @@ Status: accepted
 - `AGENTS.md`
 - `ROADMAP.md`
 - `DECISIONS.md`
+
+## 2026-06 – Network diagnostics stay separate from production firmware
+
+Status: accepted
+
+### Context
+
+- Real hardware testing showed that network failures can look like firmware faults when WiFi, DNS, MQTT, Home Assistant discovery, and NTP are tested only through the production sketch.
+- After uploading a new sketch while an older network test is running, the Nano 33 IoT / WiFiNINA stack may keep an old connection state long enough for the first WiFi connection attempt to fail.
+- Home Assistant MQTT discovery uses entity unique IDs for registry identity, so diagnostic entities must not reuse production unique IDs.
+- `WiFi.getTime()` can be used as an independent WiFiNINA module time check alongside explicit UDP NTP requests.
+
+### Decision
+
+- Keep the network diagnostics sketch as a standalone hardware test, not as production runtime logic.
+- Use test-local placeholder credentials and do not include production `Credentials.h`.
+- Use diagnostic-specific device and entity identifiers.
+- Prefer `pool.ntp.org` as the default external NTP server for firmware and diagnostics.
+- Keep WiFi reconnect hardening and richer NTP error reporting as firmware follow-up work.
+
+### Consequences
+
+- Network troubleshooting can separate WiFi/DNS/MQTT/HA/NTP behavior from sensors, actuators, RTC, EEPROM, and dimmer hardware.
+- Production firmware remains smaller and focused.
+- Future HA diagnostic devices should avoid unique ID collisions with production entities.
+- NTP troubleshooting can compare explicit UDP requests with the WiFiNINA module time source.
+
+### Affected Areas
+
+- `hardware-tests/NetworkDiagnosticsTest/NetworkDiagnosticsTest.ino`
+- `hardware-tests/NetworkDiagnosticsTest/README.md`
+- `ROADMAP.md`
 
 ## 2026-05 – Soil moisture calibration is HA-guided and firmware remains stateless for calibration workflow
 
