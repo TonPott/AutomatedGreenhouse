@@ -218,6 +218,43 @@ Status: accepted
 - `scripts/check-arduino.sh`
 - `ROADMAP.md`
 
+## 2026-06 – Module qualification tests and OTA-capable system tests are separate
+
+Status: accepted
+
+### Context
+
+- Existing sketches under `hardware-tests/` validate individual modules, libraries, wiring concepts, signal behavior, and practical hardware assumptions.
+- Planned OTA-capable tests need a different shape because they support installed-system diagnostics, multi-module behavior, longer-running observations, and remote iteration.
+- Home Assistant discovery and entities are useful for production integration, but they are not the best default interface for focused system-test control and capture.
+- mDNS can be unreliable on some networks, especially across VLAN boundaries, while fixed IP addresses or normal DNS hostnames can still provide a stable OTA upload target.
+
+### Decision
+
+- Keep module qualification tests under `hardware-tests/`.
+- Plan OTA-capable system and diagnostic tests separately under `system-tests/`.
+- Do not make Home Assistant the standard system-test interface.
+- Prefer Serial for required local diagnostics and direct MQTT test topics for optional remote interaction.
+- Use fixed-IP or normal DNS-hostname upload as the default OTA test workflow.
+- Keep mDNS as an optional compile-time feature for later tests, not as a default project dependency.
+- Treat production firmware OTA as a later end goal, not as current implemented behavior.
+
+### Consequences
+
+- Root test READMEs stay focused on global conventions, index-style orientation, and cross-test rules.
+- Detailed behavior for each test belongs in that test folder's own README.
+- OTA-capable system tests must keep trying to stay online and must not intentionally enter a permanent offline mode.
+- Long-running OTA-capable tests need non-blocking structure, normally state machines, so OTA polling remains available.
+- The first OTA work should validate the smoke-test workflow before introducing shared runtime code, shared credentials, or production firmware OTA.
+
+### Affected Areas
+
+- `hardware-tests/README.md`
+- `system-tests/README.md`
+- `system-tests/OtaSmokeTest/README.md`
+- `ROADMAP.md`
+- `AGENTS.md`
+
 ## 2026-05 – Soil moisture calibration is HA-guided and firmware remains stateless for calibration workflow
 
 Status: accepted

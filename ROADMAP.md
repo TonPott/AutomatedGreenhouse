@@ -28,6 +28,20 @@ This file tracks open work, next steps, validation needs, and optional improveme
 - Validate production MQTT reconnect after broker outage while WiFi stays connected.
 - Validate production NTP serial diagnostics for success and representative failure cases.
 
+## System And Diagnostic Test Follow-Up
+
+- Introduce OTA-capable system and diagnostic tests under `system-tests/` after the documentation structure has been reviewed.
+- Start with a minimal OTA smoke test that validates only WiFi connection, OTA startup, regular OTA polling, fixed-IP or normal DNS-hostname upload, reboot, and continued OTA availability.
+- Keep OTA-capable system tests online by design, with indefinite reconnect attempts and no intentional permanent offline mode.
+- Prefer direct MQTT test topics over Home Assistant entities for remote system-test interaction.
+- Keep Home Assistant out of the default system-test interface; add at most one explicit HA integration test unless a later decision changes that.
+- Add structured output capture tooling for MQTT-capable system tests, ideally writing JSONL files under ignored local paths such as `.local/test-runs/`.
+- Keep MQTT Explorer available for manual interaction, but do not rely on it as the only serious analysis capture path.
+- Define delay rules for OTA-capable system tests: no blocking delays over 5 seconds, intentional blocking delays over 1 second announced on Serial, and long workflows normally implemented as state machines.
+- Add a shared system-test runtime only after the OTA smoke test shape is reviewed.
+- Consider shared test credentials across production firmware, hardware module qualification tests, and system tests without committing real credentials.
+- Keep mDNS as a future compile-time option for OTA-capable system tests; the project default is fixed-IP or normal DNS-hostname upload without an mDNS dependency.
+
 ## Home Assistant Follow-Up
 
 - Implement or update HA dashboard/scripts separately from this firmware branch.
@@ -42,6 +56,7 @@ This file tracks open work, next steps, validation needs, and optional improveme
 - Consider introducing a single machine-readable dependency source used by setup and check scripts. Keep `libraries.txt` as human-readable dependency documentation unless or until that source is introduced.
 - Consider a dedicated validity indicator for soil percent if HA cannot show unavailable cleanly.
 - Consider a compact diagnostic view for current AD5263 codes or derived dimmer resistance, if useful later.
+- Consider production firmware OTA only after OTA-capable system tests and their safety/runtime patterns have been proven and explicitly documented.
 - Consider a small decision-log review before major future refactors.
 
 ## Done / Recently Aligned

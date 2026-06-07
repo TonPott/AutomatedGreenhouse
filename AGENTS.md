@@ -168,6 +168,8 @@ Before larger code changes:
   - fan tachometer (2N3904 stage)
 - Do not duplicate roadmap items into README/SPEC/MODULES unless they are actual current requirements.
 - Keep open tasks in `ROADMAP.md` and historical rationale in `DECISIONS.md`.
+- Write new or changed detailed test behavior in the README of the specific test folder.
+- Keep root test READMEs such as `hardware-tests/README.md` and `system-tests/README.md` limited to global conventions, index/orientation help, and cross-test rules.
 
 If code and documentation contradict each other, documentation comes first, unless the user explicitly says otherwise.
 
