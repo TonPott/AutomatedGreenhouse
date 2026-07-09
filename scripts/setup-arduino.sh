@@ -73,6 +73,25 @@ verify_index_url_with_curl() {
   echo "Checking network access with curl: $url"
   curl -fsSI "$url" >/dev/null
 }
+arduino_cli_proxy_source() {
+  local name
+
+  for name in HTTPS_PROXY https_proxy HTTP_PROXY http_proxy ALL_PROXY all_proxy; do
+    if [[ -n "${!name:-}" ]]; then
+      printf '%s\n' "$name"
+      return
+    fi
+  done
+}
+
+arduino_cli_network_proxy() {
+  local source_name
+  source_name="$(arduino_cli_proxy_source)"
+
+  if [[ -n "$source_name" ]]; then
+    printf '%s\n' "${!source_name}"
+  fi
+}
 
 initialize_arduino_config() {
   if [[ -n "${ARDUINO_CONFIG_FILE:-}" ]]; then
@@ -80,10 +99,19 @@ initialize_arduino_config() {
     return
   fi
 
-  local arduino_home local_dir config_file
+  local arduino_home local_dir config_file network_proxy network_config
   arduino_home="$(project_arduino_home)"
   local_dir="$REPO_ROOT/.local"
   config_file="$local_dir/arduino-cli.yaml"
+  network_proxy="$(arduino_cli_network_proxy)"
+  network_config=""
+  if [[ -n "$network_proxy" ]]; then
+    network_config="network:
+  proxy: $(yaml_single_quote "$network_proxy")"
+    echo "Configured Arduino CLI network.proxy from $(arduino_cli_proxy_source)."
+  else
+    echo "Arduino CLI network.proxy is not configured."
+  fi
 
   mkdir -p "$local_dir" "$arduino_home/data" "$arduino_home/downloads" "$arduino_home/user"
 
@@ -98,6 +126,8 @@ directories:
   data: $(yaml_single_quote "$arduino_home/data")
   downloads: $(yaml_single_quote "$arduino_home/downloads")
   user: $(yaml_single_quote "$arduino_home/user")
+
+$network_config
 
 library:
   enable_unsafe_install: false
