@@ -24,6 +24,55 @@ project_arduino_home() {
 yaml_single_quote() {
   printf "'%s'" "$(printf '%s' "$1" | sed "s/'/''/g")"
 }
+copy_env_if_set() {
+  local source_name="$1"
+  local target_name="$2"
+
+  if [[ -z "${!target_name:-}" && -n "${!source_name:-}" ]]; then
+    export "$target_name=${!source_name}"
+  fi
+}
+
+normalize_proxy_environment() {
+  copy_env_if_set http_proxy HTTP_PROXY
+  copy_env_if_set https_proxy HTTPS_PROXY
+  copy_env_if_set all_proxy ALL_PROXY
+  copy_env_if_set no_proxy NO_PROXY
+  copy_env_if_set HTTP_PROXY http_proxy
+  copy_env_if_set HTTPS_PROXY https_proxy
+  copy_env_if_set ALL_PROXY all_proxy
+  copy_env_if_set NO_PROXY no_proxy
+}
+
+print_proxy_environment_summary() {
+  local names=(
+    "HTTP_PROXY"
+    "HTTPS_PROXY"
+    "ALL_PROXY"
+    "NO_PROXY"
+    "http_proxy"
+    "https_proxy"
+    "all_proxy"
+    "no_proxy"
+  )
+  local name
+
+  echo "Proxy environment:"
+  for name in "${names[@]}"; do
+    if [[ -n "${!name:-}" ]]; then
+      echo "  $name is set"
+    else
+      echo "  $name is not set"
+    fi
+  done
+}
+
+verify_index_url_with_curl() {
+  local url="$1"
+
+  echo "Checking network access with curl: $url"
+  curl -fsSI "$url" >/dev/null
+}
 
 initialize_arduino_config() {
   if [[ -n "${ARDUINO_CONFIG_FILE:-}" ]]; then
@@ -72,12 +121,18 @@ fi
 
 export PATH="$HOME/.local/bin:$PATH"
 
+normalize_proxy_environment
+print_proxy_environment_summary
+
 initialize_arduino_config
 
-arduino-cli core update-index
+verify_index_url_with_curl "https://downloads.arduino.cc/libraries/library_index.tar.bz2"
+verify_index_url_with_curl "https://downloads.arduino.cc/packages/package_index.tar.bz2"
+
+arduino-cli --log-level trace core update-index
 arduino-cli core install arduino:samd
 
-arduino-cli lib update-index
+arduino-cli --log-level trace lib update-index
 arduino-cli lib install Arduino_SpiNINA@0.0.2
 arduino-cli lib install WiFiNINA@2.0.1
 arduino-cli lib install "Sensirion Core@0.7.3"
