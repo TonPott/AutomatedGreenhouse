@@ -3,13 +3,13 @@ version = 1
 name = "AutomatedGreenhouse"
 
 [setup]
-script = "scripts/setup-arduino.sh"
+script = "bash scripts/setup-arduino.sh"
 
 [setup.darwin]
-script = "scripts/setup-arduino.sh"
+script = "bash scripts/setup-arduino.sh"
 
 [setup.linux]
-script = "scripts/setup-arduino.sh"
+script = "bash scripts/setup-arduino.sh"
 
 [setup.win32]
 script = ".\\scripts\\setup-arduino.ps1"
@@ -18,10 +18,10 @@ script = ".\\scripts\\setup-arduino.ps1"
 script = ""
 
 [cleanup.darwin]
-script = "scripts/cleanup-worktree.sh"
+script = "bash scripts/cleanup-worktree.sh"
 
 [cleanup.linux]
-script = "scripts/cleanup-worktree.sh"
+script = "bash scripts/cleanup-worktree.sh"
 
 [cleanup.win32]
 script = "powershell -ExecutionPolicy Bypass -File .\\scripts\\cleanup-worktree.ps1"
@@ -35,13 +35,13 @@ platform = "win32"
 [[actions]]
 name = "Arduino Compile Linux"
 icon = "test"
-command = "./scripts/check-arduino.sh"
+command = "bash scripts/check-arduino.sh"
 platform = "linux"
 
 [[actions]]
 name = "Arduino Compile macOS"
 icon = "test"
-command = "./scripts/check-arduino.sh"
+command = "bash scripts/check-arduino.sh"
 platform = "darwin"
 
 [[actions]]
@@ -53,11 +53,11 @@ platform = "win32"
 [[actions]]
 name = "Arduino Setup Linux"
 icon = "tool"
-command = "./scripts/setup-arduino.sh"
+command = "bash scripts/setup-arduino.sh"
 platform = "linux"
 
 [[actions]]
 name = "Arduino Setup macOS"
 icon = "tool"
-command = "./scripts/setup-arduino.sh"
+command = "bash scripts/setup-arduino.sh"
 platform = "darwin"
