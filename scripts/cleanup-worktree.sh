@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+if [[ -f "$PWD/scripts/cleanup-worktree.sh" ]]; then
+  REPO_ROOT="$PWD"
+else
+  SCRIPT_DIR="${BASH_SOURCE[0]%/*}"
+  [[ "$SCRIPT_DIR" == "${BASH_SOURCE[0]}" ]] && SCRIPT_DIR="."
+  REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd -P)"
+fi
 
 local_directories=(
   ".build"

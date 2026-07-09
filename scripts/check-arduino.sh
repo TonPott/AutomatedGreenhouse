@@ -1,7 +1,13 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+if [[ -f "$PWD/scripts/check-arduino.sh" ]]; then
+  REPO_ROOT="$PWD"
+else
+  SCRIPT_DIR="${BASH_SOURCE[0]%/*}"
+  [[ "$SCRIPT_DIR" == "${BASH_SOURCE[0]}" ]] && SCRIPT_DIR="."
+  REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd -P)"
+fi
 cd "$REPO_ROOT"
 
 TOOLCHAIN_MISSING_MESSAGE="Arduino toolchain is not prepared. Run scripts/setup-arduino once, then retry the compile check."
