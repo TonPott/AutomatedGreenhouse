@@ -53,9 +53,3 @@ Install these libraries before compiling the project. The repository setup scrip
   - `sketches/Smaeenhouse/sketch.yaml`
   - `scripts/setup-arduino.ps1`
   - `scripts/setup-arduino.sh`
-- When changing RTC behavior, check availability of the required DS3231 alarm functions in RTClib:
-  - `writeSqwPinMode(...)`
-  - `setAlarm1(...)`
-  - `setAlarm2(...)`
-  - `alarmFired(...)`
-  - `clearAlarm(...)`
