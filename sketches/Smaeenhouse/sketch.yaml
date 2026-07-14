@@ -16,6 +16,7 @@ profiles:
       - RTClib (2.1.4)
       - PubSubClient (2.8.0)
       - home-assistant-integration (2.1.0)
+      - ArduinoOTA (1.1.1)
       - AD5263 (0.1.4)
       - JC_EEPROM (1.0.10)
       - Streaming (6.3.0)
