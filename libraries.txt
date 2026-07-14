@@ -29,6 +29,9 @@ Install these libraries before compiling the project. The repository setup scrip
   - MQTT client dependency used by ArduinoHA.
 - `home-assistant-integration@2.1.0`
   - Home Assistant MQTT integration by Dawid Chyrzynski.
+- `ArduinoOTA@1.1.1`
+  - OTA upload support for planned system and diagnostic tests using the JAndrassy ArduinoOTA library.
+  - No additional Arduino Library Manager dependencies are required by this library.
 - `AD5263@0.1.4`
   - AD5263BRUZ50 dimmer control via I2C.
   - The library is still in an early/test phase; project-specific adjustments may be required.

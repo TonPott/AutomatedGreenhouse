@@ -175,6 +175,7 @@ REQUIRED_LIBRARIES=(
   "RTClib"
   "PubSubClient"
   "home-assistant-integration"
+  "ArduinoOTA"
   "AD5263"
   "JC_EEPROM"
   "Streaming"

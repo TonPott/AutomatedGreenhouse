@@ -173,6 +173,7 @@ arduino-cli lib install "Adafruit TSL2591 Library@1.4.5"
 arduino-cli lib install RTClib@2.1.4
 arduino-cli lib install PubSubClient@2.8.0
 arduino-cli lib install home-assistant-integration@2.1.0
+arduino-cli lib install ArduinoOTA@1.1.1
 arduino-cli lib install AD5263@0.1.4
 arduino-cli lib install JC_EEPROM@1.0.10
 arduino-cli lib install Streaming@6.3.0
