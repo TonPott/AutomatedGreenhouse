@@ -61,6 +61,7 @@ constexpr uint32_t MQTT_RECONNECT_INTERVAL_MS = 10000UL;
 constexpr uint32_t OTA_MAX_POLL_GAP_MS = 2000UL;
 constexpr uint32_t STATUS_PUBLISH_INTERVAL_MS = 30000UL;
 constexpr uint32_t STATUS_PRINT_INTERVAL_MS = 30000UL;
+constexpr uint16_t MQTT_PACKET_BUFFER_SIZE = 512;
 
 volatile bool shtAlertPending = false;
 volatile bool rtcAlarmPending = false;
@@ -195,10 +196,11 @@ void publishStatus(uint32_t nowMs, bool force) {
            shtPending ? "true" : "false",
            rtcPending ? "true" : "false",
            static_cast<unsigned long>(tachPulses));
-  mqttClient.publish(MQTT_STATUS_TOPIC, payload, true);
+  const bool published = mqttClient.publish(MQTT_STATUS_TOPIC, payload, true);
 
   if (serialAvailable()) {
-    Serial.println(F("[MQTT] Published safe-state status."));
+    Serial.print(F("[MQTT] Published safe-state status="));
+    Serial.println(published ? F("YES") : F("NO"));
   }
 }
 
@@ -214,7 +216,14 @@ void publishEvent(const char* eventName) {
            TEST_ID,
            static_cast<unsigned long>(millis() / 1000UL),
            eventName);
-  mqttClient.publish(MQTT_EVENT_TOPIC, payload, false);
+  const bool published = mqttClient.publish(MQTT_EVENT_TOPIC, payload, false);
+
+  if (serialAvailable()) {
+    Serial.print(F("[MQTT] Published event "));
+    Serial.print(eventName);
+    Serial.print(F("="));
+    Serial.println(published ? F("YES") : F("NO"));
+  }
 }
 
 void onWifiConnected() {
@@ -413,6 +422,7 @@ void setup() {
   networkClient.setTimeout(NETWORK_OPERATION_TIMEOUT_MS);
   mqttClient.setServer(MQTT_HOST, MQTT_PORT);
   mqttClient.setSocketTimeout(NETWORK_OPERATION_TIMEOUT_MS / 1000UL);
+  mqttClient.setBufferSize(MQTT_PACKET_BUFFER_SIZE);
 
   nextWifiAttemptMs = millis();
 

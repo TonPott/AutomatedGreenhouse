@@ -89,7 +89,7 @@ smaeenhouse/test/safe_installed_baseline/status
 smaeenhouse/test/safe_installed_baseline/event
 ```
 
-`status` is retained and published immediately after MQTT connection and every 30 seconds while connected. It includes WiFi/MQTT/OTA state, OTA poll-gap violations, safe-state enforcement count, ISR flags, and fan tach pulse count.
+`status` is retained and published immediately after MQTT connection and every 30 seconds while connected. It includes WiFi/MQTT/OTA state, OTA poll-gap violations, safe-state enforcement count, ISR flags, and fan tach pulse count. The sketch sets the PubSubClient packet buffer to 512 bytes so this JSON payload and topic fit into one MQTT packet.
 
 ## Serial Output
 
@@ -99,6 +99,7 @@ When Serial is available, the sketch reports:
 - assigned IP address and RSSI
 - OTA readiness and any poll-gap violation over two seconds
 - MQTT connection state
+- whether each MQTT event/status publish returned success
 - safe-state status every 30 seconds, including the one-time setup enforcement count
 - pending SHT/RTC ISR flags and fan tach pulse count
 
@@ -144,7 +145,7 @@ For serious runs, capture status and event messages to an ignored JSONL file und
   - Confirm the fan remains off at boot, during WiFi reconnect, during MQTT outage, and during OTA upload/reboot.
   - Confirm the light relay remains open at boot, during WiFi reconnect, during MQTT outage, and during OTA upload/reboot.
   - Confirm AD5263 `SHDN` remains asserted at boot, during WiFi reconnect, during MQTT outage, and during OTA upload/reboot.
-  - Confirm direct MQTT status appears under `smaeenhouse/test/safe_installed_baseline/status` and no Home Assistant discovery entities are created by this sketch.
+  - Confirm direct MQTT status appears retained under `smaeenhouse/test/safe_installed_baseline/status` and no Home Assistant discovery entities are created by this sketch.
   - Confirm OTA remains reachable after the sketch is running.
 - Anomalies or limitations: Not recorded yet.
 - Safety notes to carry forward: Do not create the I2C inventory sketch until safe output polarity is confirmed on the installed hardware.
