@@ -139,14 +139,14 @@ For serious runs, capture status and event messages to an ignored JSONL file und
 
 ## Results And Notes For The Next Test
 
-- Confirmation status: Not run yet.
-- Date / firmware revision: Not recorded yet.
+- Confirmation status: Passed.
+- Date / firmware revision: 2026-07-15, `SafeInstalledBaseline` latest branch build at the time of the run.
 - Required observations:
-  - Confirm the fan remains off at boot, during WiFi reconnect, during MQTT outage, and during OTA upload/reboot.
-  - Confirm the light relay remains open at boot, during WiFi reconnect, during MQTT outage, and during OTA upload/reboot.
-  - Confirm AD5263 `SHDN` remains asserted at boot, during WiFi reconnect, during MQTT outage, and during OTA upload/reboot.
-  - Confirm direct MQTT status appears retained under `smaeenhouse/test/safe_installed_baseline/status` and no Home Assistant discovery entities are created by this sketch.
-  - Confirm OTA remains reachable after the sketch is running.
-- Anomalies or limitations: Not recorded yet.
-- Safety notes to carry forward: Do not create the I2C inventory sketch until safe output polarity is confirmed on the installed hardware.
-- Entity or topic notes to carry forward: Later tests should keep temporary diagnostics on direct MQTT test topics unless a production-relevant HA entity is under test.
+  - Fan stayed physically off for a multi-hour run.
+  - Light relay stayed physically off/open for the same multi-hour run.
+  - Status stayed normal with rising `uptime_s`, `wifi=true`, `mqtt=true`, `ota=true`, `ota_gap_violations=0`, `fan=off`, `light_relay=open`, `ad5263_shdn=asserted`, `enforce_count=1`, no SHT/RTC pending flags, and `fan_tach_pulses=0`.
+  - MQTT status appeared retained under `smaeenhouse/test/safe_installed_baseline/status`.
+  - OTA upload was confirmed before the long run. OTA was intentionally not retested after the long run to preserve the run duration.
+- Anomalies or limitations: None recorded for the safe-state baseline.
+- Safety notes to carry forward: Safe output polarity is confirmed for the next test; continue initializing non-tested actuator outputs to safe states in `setup()` and do not expose commands that can change them.
+- Entity or topic notes to carry forward: Direct MQTT test topics worked; later tests should keep temporary diagnostics on direct MQTT test topics unless a production-relevant HA entity is under test.

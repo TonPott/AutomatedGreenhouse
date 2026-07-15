@@ -35,6 +35,7 @@ The ordered plan for building OTA-capable installed-system tests is maintained i
 
 * [`OtaSmokeTest`](OtaSmokeTest/) - completed OTA, WiFi, and MQTT uptime smoke baseline.
 * [`SafeInstalledBaseline`](SafeInstalledBaseline/) - safe installed-system baseline for connected actuator outputs and direct MQTT test status.
+* [`I2cPassiveBaseline`](I2cPassiveBaseline/) - known-address I2C inventory while preserving confirmed safe actuator states.
 
 ## Required Per-Test Documentation
 
