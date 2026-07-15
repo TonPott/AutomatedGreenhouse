@@ -27,6 +27,15 @@ This directory is a planned test area. It may contain documentation before OTA-c
 
 Production firmware must not be treated as OTA-capable merely because this directory documents OTA-capable tests. Production OTA remains a future goal until explicitly implemented and documented in the production firmware.
 
+## Test Sequence Plan
+
+The ordered plan for building OTA-capable installed-system tests is maintained in [`TEST_PLAN.md`](TEST_PLAN.md). Follow that plan when adding sketches: create only the next test in the sequence after the previous test README records confirmed results and carry-forward notes.
+
+## Current System Tests
+
+* [`OtaSmokeTest`](OtaSmokeTest/) - completed OTA, WiFi, and MQTT uptime smoke baseline.
+* [`SafeInstalledBaseline`](SafeInstalledBaseline/) - safe installed-system baseline for connected actuator outputs and direct MQTT test status.
+
 ## Required Per-Test Documentation
 
 Every system test must have its own `README.md` in the test folder.
