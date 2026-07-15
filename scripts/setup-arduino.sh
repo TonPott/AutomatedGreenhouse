@@ -71,7 +71,48 @@ verify_index_url_with_curl() {
   local url="$1"
 
   echo "Checking network access with curl: $url"
-  curl -fsSI "$url" >/dev/null
+  if ! curl -fsSI "$url" >/dev/null; then
+    echo "Warning: curl could not verify $url; continuing so Arduino CLI can use any cached indexes." >&2
+  fi
+}
+
+install_profile_libraries() {
+  local sketch_yaml="$1"
+
+  if [[ ! -f "$sketch_yaml" ]]; then
+    echo "Sketch profile not found: $sketch_yaml" >&2
+    return 1
+  fi
+
+  python3 - "$sketch_yaml" <<'PY' | while IFS= read -r library; do
+import re
+import sys
+
+sketch_yaml = sys.argv[1]
+in_libraries = False
+base_indent = None
+with open(sketch_yaml, encoding="utf-8") as handle:
+    for raw_line in handle:
+        line = raw_line.rstrip("\n")
+        stripped = line.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        if stripped == "libraries:":
+            in_libraries = True
+            base_indent = len(line) - len(line.lstrip())
+            continue
+        if in_libraries:
+            indent = len(line) - len(line.lstrip())
+            if indent <= base_indent and not stripped.startswith("-"):
+                break
+            match = re.match(r"-\s+(.+?)\s+\(([^()]+)\)\s*$", stripped)
+            if match:
+                print(f"{match.group(1)}@{match.group(2)}")
+PY
+    if [[ -n "$library" ]]; then
+      arduino-cli lib install "$library"
+    fi
+  done
 }
 arduino_cli_proxy_source() {
   local name
@@ -159,24 +200,15 @@ initialize_arduino_config
 verify_index_url_with_curl "https://downloads.arduino.cc/libraries/library_index.tar.bz2"
 verify_index_url_with_curl "https://downloads.arduino.cc/packages/package_index.tar.bz2"
 
-arduino-cli --log-level trace core update-index
+if ! arduino-cli --log-level trace core update-index; then
+  echo "Warning: Arduino core index update failed; continuing with cached core index if available." >&2
+fi
 arduino-cli core install arduino:samd
 
-arduino-cli --log-level trace lib update-index
-arduino-cli lib install Arduino_SpiNINA@0.0.2
-arduino-cli lib install WiFiNINA@2.0.1
-arduino-cli lib install "Sensirion Core@0.7.3"
-arduino-cli lib install "Sensirion I2C SHT3x@1.0.1"
-arduino-cli lib install "Adafruit BusIO@1.17.4"
-arduino-cli lib install "Adafruit Unified Sensor@1.1.15"
-arduino-cli lib install "Adafruit TSL2591 Library@1.4.5"
-arduino-cli lib install RTClib@2.1.4
-arduino-cli lib install PubSubClient@2.8.0
-arduino-cli lib install home-assistant-integration@2.1.0
-arduino-cli lib install ArduinoOTA@1.1.1
-arduino-cli lib install AD5263@0.1.4
-arduino-cli lib install JC_EEPROM@1.0.10
-arduino-cli lib install Streaming@6.3.0
+if ! arduino-cli --log-level trace lib update-index; then
+  echo "Warning: Arduino library index update failed; continuing with cached library index if available." >&2
+fi
+install_profile_libraries "$REPO_ROOT/sketches/Smaeenhouse/sketch.yaml"
 
 if [[ -f "$REPO_ROOT/sketches/Smaeenhouse/sketch.yaml" ]]; then
   bash "$REPO_ROOT/scripts/check-arduino.sh"
