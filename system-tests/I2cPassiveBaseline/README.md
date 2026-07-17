@@ -16,7 +16,7 @@ The test intentionally does not publish Home Assistant discovery entities. It pu
 - Arduino Nano 33 IoT
 - Installed fan switch, grow-light relay, and AD5263 `SHDN` outputs in safe states
 - Installed I2C bus with:
-  - SHT31 at the configured address, default `0x44`
+  - SHT31 at the configured address, default `0x45`
   - DS3231 at `0x68`
   - AT24C32 at `0x57`
   - AD5263 at `0x2C`
@@ -52,14 +52,6 @@ The safe output levels are set once during `setup()` before I2C, WiFi, OTA, or M
 
 Copy `Credentials.example.h` to the ignored local file `Credentials.h`, then set WiFi, MQTT, and OTA values.
 
-Optional local override:
-
-```cpp
-#define SHT31_I2C_ADDRESS 0x44
-```
-
-Use the override only if the installed SHT31 address is known to differ from the default.
-
 ## Upload Procedure
 
 Compile from the repository root:
@@ -84,7 +76,7 @@ smaeenhouse/test/i2c_passive_baseline/status
 smaeenhouse/test/i2c_passive_baseline/event
 ```
 
-`status` is retained and published immediately after MQTT connection and every 30 seconds while connected. It contains WiFi/MQTT/OTA state, OTA poll-gap count, safe-state summary, I2C presence flags, probe count, last I2C result code, and ISR counters.
+`status` is retained and published immediately after MQTT connection and every 30 seconds while connected. It contains WiFi/MQTT/OTA state, cumulative WiFi recovery counters (`joins`, `timeouts`, and `module_resets`), OTA poll-gap count, safe-state summary, I2C presence flags, probe count, last I2C result code, and ISR counters.
 
 ## Serial Output
 
@@ -92,6 +84,7 @@ When Serial is available, the sketch reports:
 
 - I2C probe results every 30 seconds
 - WiFi connect, loss, timeout, and reconnect events
+- cumulative WiFi join, connect-timeout, and NINA module-reset counters
 - assigned IP address and RSSI
 - OTA readiness and any poll-gap violation over two seconds
 - MQTT connection state
@@ -102,6 +95,7 @@ When Serial is available, the sketch reports:
 
 - Fan remains off, light relay remains open, and AD5263 `SHDN` remains asserted.
 - OTA remains reachable while MQTT is disconnected or reconnecting.
+- After three consecutive WiFi connect timeouts, the sketch reinitializes the NINA interface and continues retrying without rebooting the SAMD21.
 - Status is retained under `smaeenhouse/test/i2c_passive_baseline/status`.
 - Expected devices report present at their documented addresses.
 - `ota_gap_violations` remains zero during normal network conditions.
@@ -124,19 +118,19 @@ For serious runs, capture status and event messages to an ignored JSONL file und
 ## Known Limitations
 
 - Address acknowledgement proves bus presence only; it does not validate full sensor readings, RTC time quality, EEPROM persistence, AD5263 readback, or TSL25911 measurement ranges.
-- The SHT31 address defaults to `0x44` unless locally overridden in `Credentials.h`.
+- The installed SHT31 address is fixed as `I2C_ADDRESS_SHT31 = 0x45` in the sketch and is not a credential.
 - The test does not clear SHT or RTC hardware interrupt causes; later module-specific tests must evaluate and clear those in loop code.
 
 ## Results And Notes For The Next Test
 
-- Confirmation status: Not run yet.
-- Date / firmware revision: Not recorded yet.
+- Confirmation status: I2C inventory passed after correcting the documented SHT address; long-run WiFi recovery requires retest.
+- Date / firmware revision: 2026-07-15, `I2cPassiveBaseline` latest branch build at the time of the run.
 - Required observations:
-  - Confirm all safe actuator states remain physically unchanged during the run.
-  - Confirm OTA upload is possible before or after the run.
-  - Confirm the retained MQTT status appears under `smaeenhouse/test/i2c_passive_baseline/status`.
-  - Confirm expected I2C presence flags for SHT31, DS3231, AT24C32, AD5263, and TSL25911.
-  - Record any missing or unstable I2C device and the observed `last_error` code.
-- Anomalies or limitations: Not recorded yet.
-- Safety notes to carry forward: Do not start persistence or RTC alarm tests until the I2C inventory is stable.
+  - Status stayed stable with rising `uptime_s`, `wifi=true`, `mqtt=true`, `ota=true`, `ota_gap=0`, and safe outputs reporting `fan=off`, `relay=open`, `shdn=asserted`, `count=1`.
+  - DS3231, AT24C32, AD5263, and TSL25911 reported present.
+  - SHT31 was missing while the sketch incorrectly probed `0x44`; after correcting the probe to the documented `0x45`, it became visible immediately.
+  - SHT interrupt status reported `sht=false`; RTC interrupt flag reported `rtc=true` and should be handled by the later RTC test.
+  - Fan tach remained `0`.
+- Anomalies or limitations: MQTT updates stopped after 63,916 seconds and the board was later observed disconnected from WiFi. The run did not confirm automatic recovery. All system-test sketches now reinitialize the NINA interface after three consecutive connection timeouts and expose cumulative recovery counters; an outage/recovery and another long run are required before this network behavior is considered confirmed.
+- Safety notes to carry forward: Safe actuator outputs remained unchanged; continue initializing non-tested outputs in `setup()` only.
 - Entity or topic notes to carry forward: Continue using direct MQTT test topics unless a production-relevant HA entity is under test.

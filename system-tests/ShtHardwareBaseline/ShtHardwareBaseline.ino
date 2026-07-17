@@ -5,6 +5,7 @@
 #include <ArduinoOTA.h>
 #include <InternalStorage.h>
 #include <PubSubClient.h>
+#include <SensirionI2cSht3x.h>
 
 #include "Credentials.h"
 
@@ -35,9 +36,9 @@
 
 namespace {
 
-constexpr char TEST_ID[] = "i2c_passive_baseline";
-constexpr char MQTT_STATUS_TOPIC[] = "smaeenhouse/test/i2c_passive_baseline/status";
-constexpr char MQTT_EVENT_TOPIC[] = "smaeenhouse/test/i2c_passive_baseline/event";
+constexpr char TEST_ID[] = "sht_hardware_baseline";
+constexpr char MQTT_STATUS_TOPIC[] = "smaeenhouse/test/sht_hardware_baseline/status";
+constexpr char MQTT_EVENT_TOPIC[] = "smaeenhouse/test/sht_hardware_baseline/event";
 
 constexpr uint8_t PIN_SHT_ALERT = 7;
 constexpr uint8_t PIN_RTC_ALARM = 10;
@@ -52,11 +53,15 @@ constexpr uint8_t FAN_OFF_LEVEL = LOW;
 constexpr uint8_t LIGHT_RELAY_OPEN_LEVEL = LOW;
 constexpr uint8_t LIGHT_DIM_SHDN_ASSERTED_LEVEL = LOW;
 
-constexpr uint8_t I2C_ADDRESS_SHT31 = 0x45;
-constexpr uint8_t I2C_ADDRESS_DS3231 = 0x68;
-constexpr uint8_t I2C_ADDRESS_AT24C32 = 0x57;
-constexpr uint8_t I2C_ADDRESS_AD5263 = 0x2C;
-constexpr uint8_t I2C_ADDRESS_TSL25911 = 0x29;
+constexpr uint8_t I2C_ADDRESS_SHT31 = SHT30_I2C_ADDR_45;
+constexpr uint8_t SHT_ADDRESS_LOW = SHT30_I2C_ADDR_44;
+constexpr uint8_t SHT_ADDRESS_HIGH = SHT30_I2C_ADDR_45;
+
+constexpr uint8_t SHT31_ALERT_READ = 0xE1;
+constexpr uint8_t SHT31_ALERT_RHS = 0x1F;
+constexpr uint8_t SHT31_ALERT_RHC = 0x14;
+constexpr uint8_t SHT31_ALERT_RLC = 0x09;
+constexpr uint8_t SHT31_ALERT_RLS = 0x02;
 
 constexpr uint32_t NETWORK_OPERATION_TIMEOUT_MS = 1000UL;
 constexpr uint32_t WIFI_SETTLE_MS = 250UL;
@@ -65,10 +70,11 @@ constexpr uint32_t WIFI_RETRY_INTERVAL_MS = 5000UL;
 constexpr uint8_t WIFI_TIMEOUTS_BEFORE_MODULE_RESET = 3;
 constexpr uint32_t MQTT_RECONNECT_INTERVAL_MS = 10000UL;
 constexpr uint32_t OTA_MAX_POLL_GAP_MS = 2000UL;
-constexpr uint32_t I2C_PROBE_INTERVAL_MS = 30000UL;
-constexpr uint32_t STATUS_PUBLISH_INTERVAL_MS = 30000UL;
-constexpr uint32_t STATUS_PRINT_INTERVAL_MS = 30000UL;
-constexpr uint16_t MQTT_PACKET_BUFFER_SIZE = 512;
+constexpr uint32_t SHT_SAMPLE_INTERVAL_MS = 2000UL;
+constexpr uint32_t SHT_LIMIT_INTERVAL_MS = 30000UL;
+constexpr uint32_t STATUS_PUBLISH_INTERVAL_MS = 10000UL;
+constexpr uint32_t STATUS_PRINT_INTERVAL_MS = 10000UL;
+constexpr uint16_t MQTT_PACKET_BUFFER_SIZE = 896;
 
 volatile bool shtAlertPending = false;
 volatile bool rtcAlarmPending = false;
@@ -92,21 +98,43 @@ enum class WifiConnectState : uint8_t {
   Connecting
 };
 
-struct I2cInventoryState {
-  bool sht31 = false;
-  bool ds3231 = false;
-  bool at24c32 = false;
-  bool ad5263 = false;
-  bool tsl25911 = false;
-  uint32_t probeCount = 0;
-  uint8_t lastError = 0;
+struct LimitValue {
+  bool ok = false;
+  uint16_t raw = 0;
+  float temperature = NAN;
+  float humidity = NAN;
+};
+
+struct ShtState {
+  bool address44Present = false;
+  bool address45Present = false;
+  bool primaryPresent = false;
+  bool initialized = false;
+  bool measurementOk = false;
+  bool statusOk = false;
+  bool limitsOk = false;
+  bool alertLineLow = false;
+  bool alertInterruptSeen = false;
+  uint16_t statusRegister = 0;
+  int16_t lastMeasurementError = 0;
+  int16_t lastStatusError = 0;
+  uint8_t lastLimitError = 0;
+  float temperature = NAN;
+  float humidity = NAN;
+  uint32_t sampleCount = 0;
+  uint32_t limitReadCount = 0;
+  LimitValue highSet;
+  LimitValue highClear;
+  LimitValue lowSet;
+  LimitValue lowClear;
 };
 
 WiFiClient networkClient;
 PubSubClient mqttClient(networkClient);
+SensirionI2cSht3x shtSensor;
 
 WifiConnectState wifiConnectState = WifiConnectState::Idle;
-I2cInventoryState i2cState;
+ShtState shtState;
 bool wifiWasConnected = false;
 bool mqttWasConnected = false;
 bool otaInitialized = false;
@@ -119,10 +147,12 @@ uint8_t consecutiveWifiConnectTimeouts = 0;
 uint32_t nextMqttAttemptMs = 0;
 uint32_t lastOtaPollMs = 0;
 uint32_t otaPollGapViolations = 0;
-uint32_t lastI2cProbeMs = 0;
+uint32_t lastSampleMs = 0;
+uint32_t lastLimitReadMs = 0;
 uint32_t lastStatusPublishMs = 0;
 uint32_t lastStatusPrintMs = 0;
 uint32_t safeStateEnforceCount = 0;
+char errorMessage[96];
 
 bool serialAvailable() {
   return static_cast<bool>(Serial);
@@ -158,40 +188,156 @@ void configurePinsForSafeState() {
 
 bool probeI2cAddress(uint8_t address) {
   Wire.beginTransmission(address);
-  const uint8_t result = Wire.endTransmission();
-  i2cState.lastError = result;
-  return result == 0;
+  return Wire.endTransmission() == 0;
 }
 
-void probeI2cInventory(uint32_t nowMs, bool force) {
-  if (!force && (nowMs - lastI2cProbeMs) < I2C_PROBE_INTERVAL_MS) {
+uint8_t crc8(const uint8_t* data, int len) {
+  uint8_t crc = 0xFF;
+  for (int i = 0; i < len; i++) {
+    crc ^= data[i];
+    for (int b = 0; b < 8; b++) {
+      crc = (crc & 0x80U) ? static_cast<uint8_t>((crc << 1) ^ 0x31U) : static_cast<uint8_t>(crc << 1);
+    }
+  }
+  return crc;
+}
+
+float decodeAlertTemp(uint16_t raw) {
+  const uint16_t temp9 = raw & 0x01FFU;
+  return (static_cast<float>(temp9) * 175.0f / 511.0f) - 45.0f;
+}
+
+float decodeAlertHum(uint16_t raw) {
+  const uint16_t hum7 = (raw >> 9) & 0x7FU;
+  return static_cast<float>(hum7) * 100.0f / 127.0f;
+}
+
+bool readLimit(uint8_t lsb, LimitValue& limit) {
+  Wire.beginTransmission(I2C_ADDRESS_SHT31);
+  Wire.write(SHT31_ALERT_READ);
+  Wire.write(lsb);
+  uint8_t result = Wire.endTransmission();
+  if (result != 0) {
+    shtState.lastLimitError = result;
+    limit.ok = false;
+    return false;
+  }
+
+  delayMicroseconds(50);
+
+  if (Wire.requestFrom(static_cast<uint8_t>(I2C_ADDRESS_SHT31), static_cast<uint8_t>(3)) != 3) {
+    shtState.lastLimitError = 255;
+    limit.ok = false;
+    return false;
+  }
+
+  uint8_t bytes[2];
+  bytes[0] = Wire.read();
+  bytes[1] = Wire.read();
+  const uint8_t crc = Wire.read();
+  if (crc8(bytes, 2) != crc) {
+    shtState.lastLimitError = 254;
+    limit.ok = false;
+    return false;
+  }
+
+  limit.raw = (static_cast<uint16_t>(bytes[0]) << 8) | bytes[1];
+  limit.temperature = decodeAlertTemp(limit.raw);
+  limit.humidity = decodeAlertHum(limit.raw);
+  limit.ok = true;
+  shtState.lastLimitError = 0;
+  return true;
+}
+
+void readLimits(uint32_t nowMs, bool force) {
+  if (!force && (nowMs - lastLimitReadMs) < SHT_LIMIT_INTERVAL_MS) {
     return;
   }
 
-  lastI2cProbeMs = nowMs;
-  i2cState.probeCount++;
-  i2cState.sht31 = probeI2cAddress(I2C_ADDRESS_SHT31);
-  i2cState.ds3231 = probeI2cAddress(I2C_ADDRESS_DS3231);
-  i2cState.at24c32 = probeI2cAddress(I2C_ADDRESS_AT24C32);
-  i2cState.ad5263 = probeI2cAddress(I2C_ADDRESS_AD5263);
-  i2cState.tsl25911 = probeI2cAddress(I2C_ADDRESS_TSL25911);
+  lastLimitReadMs = nowMs;
+  shtState.limitReadCount++;
+  const bool highSetOk = readLimit(SHT31_ALERT_RHS, shtState.highSet);
+  const bool highClearOk = readLimit(SHT31_ALERT_RHC, shtState.highClear);
+  const bool lowSetOk = readLimit(SHT31_ALERT_RLS, shtState.lowSet);
+  const bool lowClearOk = readLimit(SHT31_ALERT_RLC, shtState.lowClear);
+  shtState.limitsOk = highSetOk && highClearOk && lowSetOk && lowClearOk;
+}
 
-  if (serialAvailable()) {
-    Serial.print(F("[I2C] Probe #"));
-    Serial.print(i2cState.probeCount);
-    Serial.print(F(" sht31="));
-    Serial.print(i2cState.sht31 ? F("OK") : F("MISS"));
-    Serial.print(F(" ds3231="));
-    Serial.print(i2cState.ds3231 ? F("OK") : F("MISS"));
-    Serial.print(F(" at24c32="));
-    Serial.print(i2cState.at24c32 ? F("OK") : F("MISS"));
-    Serial.print(F(" ad5263="));
-    Serial.print(i2cState.ad5263 ? F("OK") : F("MISS"));
-    Serial.print(F(" tsl25911="));
-    Serial.print(i2cState.tsl25911 ? F("OK") : F("MISS"));
-    Serial.print(F(" last_error="));
-    Serial.println(i2cState.lastError);
+void printError(const __FlashStringHelper* context, int16_t error) {
+  if (!serialAvailable() || error == NO_ERROR) {
+    return;
   }
+
+  errorToString(error, errorMessage, sizeof(errorMessage));
+  Serial.print(context);
+  Serial.print(F(" failed: "));
+  Serial.println(errorMessage);
+}
+
+void initializeSht() {
+  shtState.address44Present = probeI2cAddress(SHT_ADDRESS_LOW);
+  shtState.address45Present = probeI2cAddress(SHT_ADDRESS_HIGH);
+  shtState.primaryPresent = probeI2cAddress(I2C_ADDRESS_SHT31);
+
+  shtSensor.begin(Wire, I2C_ADDRESS_SHT31);
+  shtSensor.stopMeasurement();
+  delay(1);
+  int16_t error = shtSensor.softReset();
+  printError(F("[SHT] softReset"), error);
+  delay(10);
+  error = shtSensor.startPeriodicMeasurement(REPEATABILITY_MEDIUM, MPS_ONE_PER_SECOND);
+  printError(F("[SHT] startPeriodicMeasurement"), error);
+  shtState.initialized = error == NO_ERROR;
+}
+
+void readShtStatus() {
+  uint16_t status = 0;
+  const int16_t error = shtSensor.readStatusRegister(status);
+  shtState.lastStatusError = error;
+  if (error != NO_ERROR) {
+    shtState.statusOk = false;
+    printError(F("[SHT] readStatusRegister"), error);
+    return;
+  }
+
+  shtState.statusRegister = status;
+  shtState.statusOk = true;
+}
+
+void readMeasurementAndStatus(uint32_t nowMs, bool force) {
+  if (!force && (nowMs - lastSampleMs) < SHT_SAMPLE_INTERVAL_MS) {
+    return;
+  }
+
+  lastSampleMs = nowMs;
+  shtState.sampleCount++;
+  shtState.alertLineLow = digitalRead(PIN_SHT_ALERT) == LOW;
+
+  if (shtAlertPending) {
+    noInterrupts();
+    shtAlertPending = false;
+    interrupts();
+    shtState.alertInterruptSeen = true;
+  }
+
+  float temperature = NAN;
+  float humidity = NAN;
+  const int16_t error = shtSensor.blockingReadMeasurement(temperature, humidity);
+  shtState.lastMeasurementError = error;
+  if (error == NO_ERROR) {
+    shtState.temperature = temperature;
+    shtState.humidity = humidity;
+    shtState.measurementOk = true;
+  } else {
+    shtState.measurementOk = false;
+    printError(F("[SHT] blockingReadMeasurement"), error);
+  }
+
+  readShtStatus();
+}
+
+bool statusBit(uint8_t bit) {
+  return (shtState.statusRegister & (1U << bit)) != 0;
 }
 
 void printIpAddress(const __FlashStringHelper* label, const IPAddress& address) {
@@ -232,7 +378,7 @@ void publishEvent(const char* eventName) {
     return;
   }
 
-  char payload[192];
+  char payload[160];
   snprintf(payload,
            sizeof(payload),
            "{\"test\":\"%s\",\"uptime_s\":%lu,\"event\":\"%s\"}",
@@ -249,6 +395,19 @@ void publishEvent(const char* eventName) {
   }
 }
 
+void appendLimitJson(char* payload, size_t payloadSize, const char* name, const LimitValue& limit) {
+  char part[96];
+  snprintf(part,
+           sizeof(part),
+           ",\"%s\":{\"ok\":%s,\"raw\":%u,\"t\":%.2f,\"rh\":%.1f}",
+           name,
+           limit.ok ? "true" : "false",
+           limit.raw,
+           static_cast<double>(limit.temperature),
+           static_cast<double>(limit.humidity));
+  strncat(payload, part, payloadSize - strlen(payload) - 1);
+}
+
 void publishStatus(uint32_t nowMs, bool force) {
   if (!mqttClient.connected()) {
     return;
@@ -261,15 +420,14 @@ void publishStatus(uint32_t nowMs, bool force) {
   lastStatusPublishMs = nowMs;
 
   noInterrupts();
-  const bool shtPending = shtAlertPending;
   const bool rtcPending = rtcAlarmPending;
   const uint32_t tachPulses = fanTachPulseCount;
   interrupts();
 
-  char payload[448];
+  char payload[820];
   snprintf(payload,
            sizeof(payload),
-           "{\"test\":\"%s\",\"uptime_s\":%lu,\"wifi\":%s,\"mqtt\":true,\"ota\":%s,\"ota_gap\":%lu,\"network\":{\"joins\":%lu,\"timeouts\":%lu,\"module_resets\":%lu},\"safe\":{\"fan\":\"off\",\"relay\":\"open\",\"shdn\":\"asserted\",\"count\":%lu},\"i2c\":{\"sht31\":%s,\"ds3231\":%s,\"at24c32\":%s,\"ad5263\":%s,\"tsl25911\":%s,\"probes\":%lu,\"last_error\":%u},\"isr\":{\"sht\":%s,\"rtc\":%s,\"tach\":%lu}}",
+           "{\"test\":\"%s\",\"uptime_s\":%lu,\"wifi\":%s,\"mqtt\":true,\"ota\":%s,\"ota_gap\":%lu,\"network\":{\"joins\":%lu,\"timeouts\":%lu,\"module_resets\":%lu},\"safe\":{\"fan\":\"off\",\"relay\":\"open\",\"shdn\":\"asserted\",\"count\":%lu},\"addr\":{\"44\":%s,\"45\":%s,\"primary\":\"0x%02X\"},\"measurement\":{\"ok\":%s,\"t\":%.2f,\"rh\":%.1f,\"err\":%d,\"samples\":%lu},\"status\":{\"ok\":%s,\"raw\":%u,\"alert\":%s,\"rh_alert\":%s,\"temp_alert\":%s,\"reset\":%s,\"cmd_err\":%s,\"crc_err\":%s,\"line_low\":%s,\"irq_seen\":%s,\"err\":%d},\"limits\":{\"ok\":%s,\"reads\":%lu,\"err\":%u",
            TEST_ID,
            static_cast<unsigned long>(nowMs / 1000UL),
            WiFi.status() == WL_CONNECTED ? "true" : "false",
@@ -279,20 +437,44 @@ void publishStatus(uint32_t nowMs, bool force) {
            static_cast<unsigned long>(wifiConnectTimeoutCount),
            static_cast<unsigned long>(wifiModuleResetCount),
            static_cast<unsigned long>(safeStateEnforceCount),
-           i2cState.sht31 ? "true" : "false",
-           i2cState.ds3231 ? "true" : "false",
-           i2cState.at24c32 ? "true" : "false",
-           i2cState.ad5263 ? "true" : "false",
-           i2cState.tsl25911 ? "true" : "false",
-           static_cast<unsigned long>(i2cState.probeCount),
-           i2cState.lastError,
-           shtPending ? "true" : "false",
+           shtState.address44Present ? "true" : "false",
+           shtState.address45Present ? "true" : "false",
+           I2C_ADDRESS_SHT31,
+           shtState.measurementOk ? "true" : "false",
+           static_cast<double>(shtState.temperature),
+           static_cast<double>(shtState.humidity),
+           shtState.lastMeasurementError,
+           static_cast<unsigned long>(shtState.sampleCount),
+           shtState.statusOk ? "true" : "false",
+           shtState.statusRegister,
+           statusBit(15) ? "true" : "false",
+           statusBit(11) ? "true" : "false",
+           statusBit(10) ? "true" : "false",
+           statusBit(4) ? "true" : "false",
+           statusBit(1) ? "true" : "false",
+           statusBit(0) ? "true" : "false",
+           shtState.alertLineLow ? "true" : "false",
+           shtState.alertInterruptSeen ? "true" : "false",
+           shtState.lastStatusError,
+           shtState.limitsOk ? "true" : "false",
+           static_cast<unsigned long>(shtState.limitReadCount),
+           shtState.lastLimitError);
+  appendLimitJson(payload, sizeof(payload), "high_set", shtState.highSet);
+  appendLimitJson(payload, sizeof(payload), "high_clear", shtState.highClear);
+  appendLimitJson(payload, sizeof(payload), "low_set", shtState.lowSet);
+  appendLimitJson(payload, sizeof(payload), "low_clear", shtState.lowClear);
+  char tail[96];
+  snprintf(tail,
+           sizeof(tail),
+           "},\"isr\":{\"rtc\":%s,\"tach\":%lu}}",
            rtcPending ? "true" : "false",
            static_cast<unsigned long>(tachPulses));
+  strncat(payload, tail, sizeof(payload) - strlen(payload) - 1);
+
   const bool published = mqttClient.publish(MQTT_STATUS_TOPIC, payload, true);
 
   if (serialAvailable()) {
-    Serial.print(F("[MQTT] Published I2C status="));
+    Serial.print(F("[MQTT] Published SHT status="));
     Serial.println(published ? F("YES") : F("NO"));
   }
 }
@@ -486,14 +668,20 @@ void printStatus(uint32_t nowMs) {
   Serial.print(mqttClient.connected() ? F("UP") : F("DOWN"));
   Serial.print(F(", ota="));
   Serial.print(otaInitialized ? F("READY") : F("WAITING_FOR_WIFI"));
-  Serial.print(F(", i2c_probes="));
-  Serial.print(i2cState.probeCount);
-  Serial.print(F(", devices="));
-  Serial.print(i2cState.sht31 ? F("SHT31 ") : F(""));
-  Serial.print(i2cState.ds3231 ? F("DS3231 ") : F(""));
-  Serial.print(i2cState.at24c32 ? F("AT24C32 ") : F(""));
-  Serial.print(i2cState.ad5263 ? F("AD5263 ") : F(""));
-  Serial.print(i2cState.tsl25911 ? F("TSL25911") : F(""));
+  Serial.print(F(", addr44="));
+  Serial.print(shtState.address44Present ? F("YES") : F("NO"));
+  Serial.print(F(", addr45="));
+  Serial.print(shtState.address45Present ? F("YES") : F("NO"));
+  Serial.print(F(", temp="));
+  Serial.print(shtState.temperature, 2);
+  Serial.print(F(", hum="));
+  Serial.print(shtState.humidity, 1);
+  Serial.print(F(", alert_line_low="));
+  Serial.print(shtState.alertLineLow ? F("YES") : F("NO"));
+  Serial.print(F(", irq_seen="));
+  Serial.print(shtState.alertInterruptSeen ? F("YES") : F("NO"));
+  Serial.print(F(", status=0x"));
+  Serial.print(shtState.statusRegister, HEX);
   Serial.print(F(", ota_gap_violations="));
   Serial.println(otaPollGapViolations);
 }
@@ -508,7 +696,9 @@ void setup() {
   // Native USB Serial is optional. Never wait for a host to open the port.
 
   Wire.begin();
-  probeI2cInventory(millis(), true);
+  initializeSht();
+  readLimits(millis(), true);
+  readMeasurementAndStatus(millis(), true);
 
   WiFi.setTimeout(NETWORK_OPERATION_TIMEOUT_MS);
   networkClient.setTimeout(NETWORK_OPERATION_TIMEOUT_MS);
@@ -520,8 +710,8 @@ void setup() {
 
   if (serialAvailable()) {
     Serial.println();
-    Serial.println(F("Grow Controller I2C Passive Baseline Test"));
-    Serial.println(F("Runtime order: safe outputs -> I2C known-address probe -> WiFi -> OTA -> direct MQTT test topics"));
+    Serial.println(F("Grow Controller SHT Hardware Baseline Test"));
+    Serial.println(F("Runtime order: safe outputs -> SHT init/read -> WiFi -> OTA -> direct MQTT test topics"));
   }
 }
 
@@ -529,7 +719,8 @@ void loop() {
   serviceOta();
 
   uint32_t nowMs = millis();
-  probeI2cInventory(nowMs, false);
+  readMeasurementAndStatus(nowMs, false);
+  readLimits(nowMs, false);
   serviceWifi(nowMs);
   serviceOta();
 

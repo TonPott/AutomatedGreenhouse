@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <WiFiNINA.h>
+#include <spi_drv.h>
 #include <ArduinoOTA.h>
 #include <InternalStorage.h>
 #include <PubSubClient.h>
@@ -57,6 +58,7 @@ constexpr uint32_t NETWORK_OPERATION_TIMEOUT_MS = 1000UL;
 constexpr uint32_t WIFI_SETTLE_MS = 250UL;
 constexpr uint32_t WIFI_CONNECT_TIMEOUT_MS = 15000UL;
 constexpr uint32_t WIFI_RETRY_INTERVAL_MS = 5000UL;
+constexpr uint8_t WIFI_TIMEOUTS_BEFORE_MODULE_RESET = 3;
 constexpr uint32_t MQTT_RECONNECT_INTERVAL_MS = 10000UL;
 constexpr uint32_t OTA_MAX_POLL_GAP_MS = 2000UL;
 constexpr uint32_t STATUS_PUBLISH_INTERVAL_MS = 30000UL;
@@ -94,6 +96,10 @@ bool mqttWasConnected = false;
 bool otaInitialized = false;
 uint32_t wifiStateStartedMs = 0;
 uint32_t nextWifiAttemptMs = 0;
+uint32_t wifiConnectionCount = 0;
+uint32_t wifiConnectTimeoutCount = 0;
+uint32_t wifiModuleResetCount = 0;
+uint8_t consecutiveWifiConnectTimeouts = 0;
 uint32_t nextMqttAttemptMs = 0;
 uint32_t lastOtaPollMs = 0;
 uint32_t otaPollGapViolations = 0;
@@ -183,15 +189,18 @@ void publishStatus(uint32_t nowMs, bool force) {
   const uint32_t tachPulses = fanTachPulseCount;
   interrupts();
 
-  char payload[320];
+  char payload[384];
   snprintf(payload,
            sizeof(payload),
-           "{\"test\":\"%s\",\"uptime_s\":%lu,\"wifi\":%s,\"mqtt\":true,\"ota\":%s,\"ota_gap_violations\":%lu,\"safe_state\":{\"fan\":\"off\",\"light_relay\":\"open\",\"ad5263_shdn\":\"asserted\",\"enforce_count\":%lu},\"isr_flags\":{\"sht_alert\":%s,\"rtc_alarm\":%s,\"fan_tach_pulses\":%lu}}",
+           "{\"test\":\"%s\",\"uptime_s\":%lu,\"wifi\":%s,\"mqtt\":true,\"ota\":%s,\"ota_gap_violations\":%lu,\"network\":{\"joins\":%lu,\"timeouts\":%lu,\"module_resets\":%lu},\"safe_state\":{\"fan\":\"off\",\"light_relay\":\"open\",\"ad5263_shdn\":\"asserted\",\"enforce_count\":%lu},\"isr_flags\":{\"sht_alert\":%s,\"rtc_alarm\":%s,\"fan_tach_pulses\":%lu}}",
            TEST_ID,
            static_cast<unsigned long>(nowMs / 1000UL),
            WiFi.status() == WL_CONNECTED ? "true" : "false",
            otaInitialized ? "true" : "false",
            static_cast<unsigned long>(otaPollGapViolations),
+           static_cast<unsigned long>(wifiConnectionCount),
+           static_cast<unsigned long>(wifiConnectTimeoutCount),
+           static_cast<unsigned long>(wifiModuleResetCount),
            static_cast<unsigned long>(safeStateEnforceCount),
            shtPending ? "true" : "false",
            rtcPending ? "true" : "false",
@@ -263,6 +272,8 @@ void serviceWifi(uint32_t nowMs) {
     wifiConnectState = WifiConnectState::Idle;
     if (!wifiWasConnected) {
       wifiWasConnected = true;
+      wifiConnectionCount++;
+      consecutiveWifiConnectTimeouts = 0;
       onWifiConnected();
     }
     return;
@@ -293,11 +304,28 @@ void serviceWifi(uint32_t nowMs) {
     case WifiConnectState::Connecting:
       if ((nowMs - wifiStateStartedMs) >= WIFI_CONNECT_TIMEOUT_MS) {
         WiFi.disconnect();
-        wifiConnectState = WifiConnectState::Idle;
-        nextWifiAttemptMs = nowMs + WIFI_RETRY_INTERVAL_MS;
+        wifiConnectTimeoutCount++;
+        consecutiveWifiConnectTimeouts++;
 
-        if (serialAvailable()) {
-          Serial.println(F("[WiFi] Connect timeout; retry scheduled with outputs safe."));
+        if (consecutiveWifiConnectTimeouts >= WIFI_TIMEOUTS_BEFORE_MODULE_RESET) {
+          networkClient.stop();
+          SpiDrv::begin(true);
+          WiFi.setTimeout(NETWORK_OPERATION_TIMEOUT_MS);
+          wifiModuleResetCount++;
+          consecutiveWifiConnectTimeouts = 0;
+          wifiConnectState = WifiConnectState::Settling;
+          wifiStateStartedMs = millis();
+
+          if (serialAvailable()) {
+            Serial.println(F("[WiFi] Reinitialized NINA after repeated connect timeouts; retry scheduled with outputs safe."));
+          }
+        } else {
+          wifiConnectState = WifiConnectState::Idle;
+          nextWifiAttemptMs = nowMs + WIFI_RETRY_INTERVAL_MS;
+
+          if (serialAvailable()) {
+            Serial.println(F("[WiFi] Connect timeout; retry scheduled with outputs safe."));
+          }
         }
       }
       break;
@@ -392,6 +420,12 @@ void printStatus(uint32_t nowMs) {
   Serial.print(nowMs / 1000UL);
   Serial.print(F(" s, wifi="));
   Serial.print(WiFi.status() == WL_CONNECTED ? F("UP") : F("DOWN"));
+  Serial.print(F(", wifi_joins="));
+  Serial.print(wifiConnectionCount);
+  Serial.print(F(", wifi_timeouts="));
+  Serial.print(wifiConnectTimeoutCount);
+  Serial.print(F(", wifi_module_resets="));
+  Serial.print(wifiModuleResetCount);
   Serial.print(F(", mqtt="));
   Serial.print(mqttClient.connected() ? F("UP") : F("DOWN"));
   Serial.print(F(", ota="));

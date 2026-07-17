@@ -89,13 +89,14 @@ smaeenhouse/test/safe_installed_baseline/status
 smaeenhouse/test/safe_installed_baseline/event
 ```
 
-`status` is retained and published immediately after MQTT connection and every 30 seconds while connected. It includes WiFi/MQTT/OTA state, OTA poll-gap violations, safe-state enforcement count, ISR flags, and fan tach pulse count. The sketch sets the PubSubClient packet buffer to 512 bytes so this JSON payload and topic fit into one MQTT packet.
+`status` is retained and published immediately after MQTT connection and every 30 seconds while connected. It includes WiFi/MQTT/OTA state and cumulative WiFi recovery counters (`joins`, `timeouts`, and `module_resets`), OTA poll-gap violations, safe-state enforcement count, ISR flags, and fan tach pulse count. The sketch sets the PubSubClient packet buffer to 512 bytes so this JSON payload and topic fit into one MQTT packet.
 
 ## Serial Output
 
 When Serial is available, the sketch reports:
 
 - WiFi connect, loss, timeout, and reconnect events
+- cumulative WiFi join, connect-timeout, and NINA module-reset counters
 - assigned IP address and RSSI
 - OTA readiness and any poll-gap violation over two seconds
 - MQTT connection state
@@ -110,6 +111,7 @@ When Serial is available, the sketch reports:
 - AD5263 `SHDN` remains asserted from boot through normal operation, including after WiFi, OTA, and MQTT are active.
 - WiFi connects before OTA and MQTT test-topic publication starts.
 - OTA remains reachable while MQTT is disconnected or reconnecting.
+- After three consecutive WiFi connect timeouts, the sketch reinitializes the NINA interface and continues retrying without rebooting the SAMD21.
 - WiFi reconnect attempts continue indefinitely without blocking the loop permanently.
 - `ota_gap_violations` remains zero during normal network conditions.
 - ISR handlers only set flags or count pulses; no I2C, MQTT, Home Assistant, or sensor logic runs inside ISRs.

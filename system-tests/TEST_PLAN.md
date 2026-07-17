@@ -44,7 +44,7 @@ Confirmed scope:
 - MQTT/ArduinoHA uptime publication through the dedicated test device
 - reboot and continued OTA availability after upload
 
-Carry-forward rule: every later OTA-capable system test keeps OTA polling early and regular, keeps WiFi reconnect non-blocking, and must not make OTA depend on MQTT, Home Assistant, sensors, actuator jobs, or command loops.
+Carry-forward rule: every later OTA-capable system test keeps OTA polling early and regular, keeps WiFi reconnect non-blocking, and must not make OTA depend on MQTT, Home Assistant, sensors, actuator jobs, or command loops. Because no standalone mode exists yet, stable WiFi recovery has priority over all later feature validation. Every sketch must retry indefinitely, reinitialize the NINA interface after repeated connection timeouts, expose recovery counters, and pass a controlled outage/recovery check before its feature result is accepted.
 
 ### 1. Safe Installed-System Baseline
 
