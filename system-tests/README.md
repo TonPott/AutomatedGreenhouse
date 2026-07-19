@@ -27,6 +27,22 @@ This directory is a planned test area. It may contain documentation before OTA-c
 
 Production firmware must not be treated as OTA-capable merely because this directory documents OTA-capable tests. Production OTA remains a future goal until explicitly implemented and documented in the production firmware.
 
+## Test Sequence Plan
+
+The ordered plan for building OTA-capable installed-system tests is maintained in [`TEST_PLAN.md`](TEST_PLAN.md). Follow that plan when adding sketches: create only the next test in the sequence after the previous test README records confirmed results and carry-forward notes.
+
+## Network Recovery Rule
+
+There is no standalone operating mode in the current project phase. Every OTA-capable system test must therefore maintain WiFi as its highest-priority runtime dependency, retry indefinitely after link loss, and reinitialize the NINA interface after repeated connection timeouts. Test-specific READMEs must record controlled outage recovery and long-run observations before the tested feature is considered confirmed.
+
+## Current System Tests
+
+* [`OtaSmokeTest`](OtaSmokeTest/) - completed OTA, WiFi, and MQTT uptime smoke baseline.
+* [`SafeInstalledBaseline`](SafeInstalledBaseline/) - safe installed-system baseline for connected actuator outputs and direct MQTT test status.
+* [`I2cPassiveBaseline`](I2cPassiveBaseline/) - known-address I2C inventory while preserving confirmed safe actuator states.
+* [`ShtHardwareBaseline`](ShtHardwareBaseline/) - SHT measurements, stored alert limits, address checks, and alert interrupt monitoring.
+* [`PersistenceRtcBaseline`](PersistenceRtcBaseline/) - AT24C32 persistence, DS3231 time/alarm handling, and HA long-run telemetry with safe actuator outputs.
+
 ## Required Per-Test Documentation
 
 Every system test must have its own `README.md` in the test folder.
@@ -55,9 +71,9 @@ Each test README should document:
 
 Serial output remains required for local bench validation and basic diagnostics.
 
-For remote interaction, system tests should prefer direct MQTT test topics over Home Assistant entities. MQTT Explorer may be useful for manual interaction, but structured output intended for later analysis should be captured through a log file, ideally JSONL.
+For remote interaction, early bring-up tests may use direct MQTT test topics only. Longer system tests that benefit from retained history should publish a focused set of production-relevant Home Assistant entities through the `Grow Controller Tests` device, while keeping extra diagnostics under direct MQTT test topics.
 
-Home Assistant must not be the default test interface. The project should have at most one explicit HA integration test unless a later decision changes this.
+When a test changes its Home Assistant entity set, remove obsolete retained discovery and state topics from older test revisions so Home Assistant does not keep stale entities.
 
 A system test must not require Home Assistant for OTA availability.
 
