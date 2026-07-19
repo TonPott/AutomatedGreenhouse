@@ -7,10 +7,10 @@ This plan defines the ordered system-test path from the completed OTA smoke test
 - `system-tests/OtaSmokeTest` is the completed baseline and is not repeated here as open work.
 - Create one new sketch at a time. Do not create the next sketch until the previous sketch's required functions have been confirmed on the installed system.
 - Each new sketch must preserve the confirmed runtime behavior from the previous sketch unless a later README explicitly documents a deliberate replacement.
-- After the OTA smoke baseline, tests may use Home Assistant only for entities that are relevant to the main firmware entity model. Temporary diagnostics should use direct MQTT test topics or Serial output instead of adding extra HA entities.
+- After the OTA smoke, safe-output, I2C, and SHT hardware baselines, long-run system tests should publish a focused set of production-relevant Home Assistant entities through the `Grow Controller Tests` device so Home Assistant can retain useful history graphs during multi-day runs. Temporary diagnostics may still use direct MQTT test topics or Serial output instead of adding extra HA entities.
 - Every sketch that touches actuators must put all connected peripherals into safe states during boot before network services start. Safe states include, at minimum: relay open, fan off, AD5263 shutdown or a documented safe dimmer setting, and no unintended I2C activity from ISRs. Outputs that are not part of the current test must not have entities, commands, callbacks, or local code paths that can change them after setup.
 - Test READMEs must include a `Results And Notes For The Next Test` section. That section records confirmation status, anomalies, safe operating limits, and carry-forward assumptions that the next sketch must respect.
-- Test sketches should publish production-equivalent HA entities only when those entities are under test. Other observations should remain under the separated `smaeenhouse/test/<test_id>/...` MQTT namespace.
+- Test sketches should publish production-equivalent HA entities when those values are useful for validating the feature under test or for long-run trend review. Remove obsolete retained discovery/state topics from earlier iterations when changing the HA entity set so Home Assistant does not show stale test entities. Other observations should remain under the separated `smaeenhouse/test/<test_id>/...` MQTT namespace.
 - Real measurement histories, HA exports, and raw cabinet datasets are sensitive. Keep captures in ignored local paths and document only summarized or anonymized results.
 
 ## Required Per-Sketch README Additions
@@ -66,7 +66,7 @@ Exit criteria before creating the next sketch:
 - No actuator moves unexpectedly with the complete installed wiring connected.
 - The README records any inverted relay/fan behavior or pin-level surprise that later tests must account for.
 
-### 2. I2C Inventory And Passive Sensor Baseline
+### 2. I2C Inventory And Passive Sensor Baseline - Complete
 
 Purpose: validate that all installed I2C devices can coexist on the bus while every actuator remains safe.
 
@@ -85,6 +85,22 @@ Exit criteria:
 - Missing or unstable devices set or log the corresponding production fault concept: `sht_fault`, `rtc_fault`, `eeprom_fault`, `light_sensor_fault`, or `light_fault` for AD5263 reachability.
 - No I2C access happens inside ISRs.
 
+Confirmed result: accepted after the SHT address was corrected to the documented project address `0x45` and the follow-up SHT hardware baseline confirmed stable communication at that address. Carry forward that the original long I2C run exposed a WiFi-disconnect risk, while the later SHT run stayed online for more than 183,000 seconds with recovery counters published; a controlled outage/recovery test remains required before the network behavior is fully validated.
+
+### 2a. SHT Hardware Baseline - Complete
+
+Purpose: validate the installed SHT31 address, measurement path, stored alert-limit reads, and alert-pin monitoring before allowing SHT-driven fan behavior.
+
+Confirmed scope:
+
+- SHT31 responds at the fixed project address `0x45`; `0x44` does not respond on this hardware.
+- Temperature and humidity measurements remained plausible and updated through a long run.
+- Stored high/clear/low alert limits were readable and decoded.
+- The alert ISR remained minimal and only recorded whether the interrupt was observed.
+- Fan, relay, and AD5263 safe outputs remained unchanged.
+
+Carry-forward rule: the next fan test must re-check the observed latched/status-register detail where the SHT alert summary bit was set while decoded RH/temperature alert bits were false and the alert line stayed high. Do not energize the fan automatically until thresholds are explicitly written or confirmed, alert-line behavior is understood, and tach feedback is validated.
+
 ### 3. Persistence And RTC Alarm Configuration Test
 
 Purpose: validate external EEPROM persistence, RTC time handling, and DS3231 alarm register programming without actuating the light.
@@ -93,17 +109,20 @@ Required behavior:
 
 - Preserve previous safe states and passive sensor behavior.
 - Read and write only through the AT24C32 persistence layer pattern intended for production.
-- Write only changed values and record write counts or change decisions in test MQTT logs.
+- Use a clearly documented test record layout and allow the test to overwrite that EEPROM area completely; there are no production-relevant EEPROM records that need preservation at this stage.
+- Write only changed values and record write counts or change decisions in test MQTT logs and HA diagnostic entities.
 - Validate representative persisted values: fan auto mode, light auto mode, fallback mode, light schedule minutes, default dim duration, SHT thresholds, and soil calibration values.
 - Program DS3231 Alarm1 and Alarm2 from persisted light schedule values, then verify alarm-fired handling through a minimal ISR flag plus main-loop evaluation.
 - Trigger or simulate schedule times without closing the relay or releasing an unsafe dimmer state.
-- Publish only production-relevant HA number/switch/fault entities when HA validation is needed.
+- Publish a focused Home Assistant entity set through the `Grow Controller Tests` device for long-run history: EEPROM status, EEPROM write/skip counters, persisted sequence/checksum state, RTC time/lost-power status, Alarm1/Alarm2 configured/seen counters, network recovery counters, OTA gap count, and safe-output status. Keep extra low-level diagnostics on direct MQTT test topics.
+- Remove obsolete retained HA discovery and state topics for entities that are renamed or dropped by this test before accepting the run.
 
 Exit criteria:
 
 - Values survive reboot and OTA update.
 - Alarm flags are handled in the main loop, not in the ISR.
 - Alarm updates occur after boot, time sync, and configuration changes.
+- Home Assistant shows clean long-run histories for the selected `Grow Controller Tests` entities, with no stale retained entities from earlier test revisions.
 - README notes identify EEPROM write frequency and any RTC/alarm edge cases for the next light tests.
 
 ### 4. SHT Alert And Fan Closed-Loop Test

@@ -121,15 +121,16 @@ This test only reads the SHT sensor and its alert configuration. It does not act
 
 ## Results And Notes For The Next Test
 
-- Confirmation status: Not run yet.
-- Date / firmware revision: Not recorded yet.
+- Confirmation status: Complete. The installed SHT31 is stable at the fixed project address `0x45`; `0x44` does not respond on this hardware.
+- Date / firmware revision: Follow-up branch build containing the fixed `I2C_ADDRESS_SHT31 = SHT30_I2C_ADDR_45` constant.
 - Required observations:
-  - Confirm which SHT address responds: `0x44`, `0x45`, or neither.
-  - Confirm temperature and humidity readings are plausible.
-  - Confirm stored high/clear/low alert limits are readable.
-  - Confirm the alert line and `irq_seen` behavior during normal conditions and any alert condition that occurs naturally during the run.
-  - Confirm all safe actuator states remain physically unchanged.
-  - Confirm OTA upload is possible before or after the run.
-- Anomalies or limitations: Not recorded yet.
-- Safety notes to carry forward: Do not proceed to SHT-driven fan behavior until the SHT address, measurement reads, limit reads, and alert pin behavior are understood.
-- Entity or topic notes to carry forward: Continue using direct MQTT test topics unless a production-relevant HA entity is under test.
+  - Address probes reported `addr.44=false`, `addr.45=true`, and `primary=0x45`.
+  - The test stayed online through at least `uptime_s=183537` with `wifi=true`, `mqtt=true`, `ota=true`, and `ota_gap=0`.
+  - Network counters reported `joins=1`, `timeouts=1`, and `module_resets=0` during the accepted run.
+  - Measurements were valid and plausible at the last captured status: `t=26.80`, `rh=46.8`, `err=0`, and `samples=91529`.
+  - Stored SHT alert limits were readable through `reads=6117` with `err=0`; the decoded high set, high clear, low set, and low clear values were published successfully.
+  - The status register read succeeded with `raw=32816`, `alert=true`, `rh_alert=false`, `temp_alert=false`, `reset=true`, `cmd_err=false`, `crc_err=false`, `line_low=false`, and `irq_seen=false`.
+  - Safe actuator outputs remained reported as `fan=off`, `relay=open`, `shdn=asserted`, `count=1`.
+- Anomalies or limitations: The status register showed the SHT alert summary bit set while the decoded RH and temperature alert bits were false and the alert line stayed high. Carry this forward as a status-decoding or latched-status item to re-check before relying on the SHT alert to drive the fan. A controlled WiFi outage/recovery test is also still needed even though this long run remained connected.
+- Safety notes to carry forward: Do not energize the fan automatically until the next fan test explicitly writes thresholds, clears/understands any latched SHT status, verifies alert-line behavior, and confirms tach feedback. Keep relay and AD5263 outputs safe in setup because they are not part of the fan test.
+- Entity or topic notes to carry forward: The next SHT-driven fan test may introduce only the production-relevant fan HA entities needed for manual fan control, fan auto mode, RPM, and `fan_fault`; extra diagnostics should remain under direct MQTT test topics.

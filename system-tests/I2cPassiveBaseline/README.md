@@ -123,14 +123,15 @@ For serious runs, capture status and event messages to an ignored JSONL file und
 
 ## Results And Notes For The Next Test
 
-- Confirmation status: I2C inventory passed after correcting the documented SHT address; long-run WiFi recovery requires retest.
-- Date / firmware revision: 2026-07-15, `I2cPassiveBaseline` latest branch build at the time of the run.
+- Confirmation status: Complete. The I2C inventory is accepted after the SHT address was fixed to the documented project address and the follow-up SHT hardware test confirmed stable SHT communication at `0x45`.
+- Date / firmware revision: 2026-07-15 initial run plus the follow-up branch build containing the fixed `I2C_ADDRESS_SHT31 = 0x45` constant.
 - Required observations:
   - Status stayed stable with rising `uptime_s`, `wifi=true`, `mqtt=true`, `ota=true`, `ota_gap=0`, and safe outputs reporting `fan=off`, `relay=open`, `shdn=asserted`, `count=1`.
   - DS3231, AT24C32, AD5263, and TSL25911 reported present.
-  - SHT31 was missing while the sketch incorrectly probed `0x44`; after correcting the probe to the documented `0x45`, it became visible immediately.
+  - SHT31 was missing while the sketch incorrectly probed `0x44`; after correcting the sketch to the documented `0x45`, it became visible immediately.
+  - The later `ShtHardwareBaseline` run confirmed `addr.44=false`, `addr.45=true`, and `primary=0x45`, so the earlier I2C finding was an address mismatch rather than a bus, wiring, or sensor-presence failure.
   - SHT interrupt status reported `sht=false`; RTC interrupt flag reported `rtc=true` and should be handled by the later RTC test.
   - Fan tach remained `0`.
-- Anomalies or limitations: MQTT updates stopped after 63,916 seconds and the board was later observed disconnected from WiFi. The run did not confirm automatic recovery. All system-test sketches now reinitialize the NINA interface after three consecutive connection timeouts and expose cumulative recovery counters; an outage/recovery and another long run are required before this network behavior is considered confirmed.
+- Anomalies or limitations: The original long run stopped publishing MQTT updates after 63,916 seconds and the board was later observed disconnected from WiFi. All system-test sketches now reinitialize the NINA interface after three consecutive connection timeouts and expose cumulative recovery counters. The SHT follow-up run stayed connected for more than 183,000 seconds with `network.joins=1`, `network.timeouts=1`, and `network.module_resets=0`, but a controlled outage/recovery check is still required before network recovery behavior is considered fully validated.
 - Safety notes to carry forward: Safe actuator outputs remained unchanged; continue initializing non-tested outputs in `setup()` only.
 - Entity or topic notes to carry forward: Continue using direct MQTT test topics unless a production-relevant HA entity is under test.
