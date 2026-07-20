@@ -30,7 +30,7 @@ This file tracks open work, next steps, validation needs, and optional improveme
 
 ## System And Diagnostic Test Follow-Up
 
-- Introduce OTA-capable system and diagnostic tests under `system-tests/` after the documentation structure has been reviewed.
+- Introduce OTA-capable system and diagnostic tests under `sketches/system-tests/` after the documentation structure has been reviewed.
 - Start with a minimal OTA smoke test that validates only WiFi connection, OTA startup, regular OTA polling, fixed-IP or normal DNS-hostname upload, reboot, and continued OTA availability.
 - Keep OTA-capable system tests online by design, with indefinite reconnect attempts and no intentional permanent offline mode.
 - Prefer direct MQTT test topics over Home Assistant entities for remote system-test interaction.

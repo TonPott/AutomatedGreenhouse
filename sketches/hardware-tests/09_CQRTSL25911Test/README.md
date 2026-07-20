@@ -29,7 +29,7 @@ The production schematic in `FullArduinoHouse.fzz` is the primary wiring referen
 Compile:
 
 ```powershell
-$env:SKETCH = "hardware-tests/CQRTSL25911Test"
+$env:SKETCH = "sketches/hardware-tests/09_CQRTSL25911Test"
 .\scripts\check-arduino.ps1
 ```
 

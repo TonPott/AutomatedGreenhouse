@@ -11,7 +11,7 @@ Keep wiring, pin assignments, power domains, and signal-level assumptions here s
 - Board: Arduino Nano 33 IoT
 - FQBN: `arduino:samd:nano_33_iot`
 - Logic voltage: 3.3 V
-- Firmware sketch: `sketches/Smaeenhouse/Smaeenhouse.ino`
+- Firmware sketch: `sketches/alpha/Smaeenhouse/Smaeenhouse.ino`
 
 ## Connected Hardware
 

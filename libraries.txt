@@ -49,10 +49,10 @@ Install these libraries before compiling the project. The repository setup scrip
 
 ## Notes
 
-- Create local `sketches/Smaeenhouse/Credentials.h` from `sketches/Smaeenhouse/Credentials.example.h`.
+- Create local `sketches/alpha/Smaeenhouse/Credentials.h` from `sketches/alpha/Smaeenhouse/Credentials.example.h`.
 - Do not commit `Credentials.h`.
 - When changing dependencies, update all of these together:
   - `libraries.txt`
-  - `sketches/Smaeenhouse/sketch.yaml`
+  - `sketches/alpha/Smaeenhouse/sketch.yaml`
   - `scripts/setup-arduino.ps1`
   - `scripts/setup-arduino.sh`

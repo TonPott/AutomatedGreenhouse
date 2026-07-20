@@ -28,14 +28,19 @@ The system should work with Home Assistant and also continue operating locally a
 |-- libraries.txt
 |-- arduino-cli.yaml
 |-- sketches/
-|   `-- Smaeenhouse/
-|       |-- Smaeenhouse.ino
-|       |-- sketch.yaml
-|       |-- Credentials.example.h
-|       `-- *.h / *.cpp
-|-- hardware-tests/
-|   |-- README.md
-|   `-- <test-sketch>/
+|   |-- alpha/
+|   |   `-- Smaeenhouse/
+|   |       |-- Smaeenhouse.ino
+|   |       |-- sketch.yaml
+|   |       |-- Credentials.example.h
+|   |       `-- *.h / *.cpp
+|   |-- hardware-tests/
+|   |   |-- README.md
+|   |   `-- 00_<test-sketch>/
+|   `-- system-tests/
+|       |-- README.md
+|       |-- TEST_PLAN.md
+|       `-- 00_<test-sketch>/
 |-- scripts/
 |   |-- setup-arduino.*
 |   |-- check-arduino.*
@@ -44,7 +49,7 @@ The system should work with Home Assistant and also continue operating locally a
 `-- .github/workflows/arduino-compile.yml
 ```
 
-The project remains Arduino-IDE-compatible. Open `sketches/Smaeenhouse/Smaeenhouse.ino` in the Arduino IDE.
+The project remains Arduino-IDE-compatible. Open `sketches/alpha/Smaeenhouse/Smaeenhouse.ino` in the Arduino IDE.
 
 ## Project Overview For New Users
 
@@ -100,17 +105,17 @@ Linux / Codex Cloud / GitHub Actions:
 ./scripts/check-arduino.sh
 ```
 
-The default sketch is `sketches/Smaeenhouse`. The default profile is `nano33iot`.
+The default sketch is `sketches/alpha/Smaeenhouse`. The default profile is `nano33iot`.
 
 Hardware test example:
 
 ```powershell
-$env:SKETCH = "hardware-tests/AD5263Test"
+$env:SKETCH = "sketches/hardware-tests/08_AD5263Test"
 .\scripts\check-arduino.ps1
 ```
 
 ```bash
-SKETCH=hardware-tests/AD5263Test ./scripts/check-arduino.sh
+SKETCH=sketches/hardware-tests/08_AD5263Test ./scripts/check-arduino.sh
 ```
 
 If the compile check reports that the Arduino toolchain is not prepared, run the matching setup script once and retry.
@@ -122,7 +127,7 @@ This project pins core and library versions deliberately because the production 
 Keep these files in sync whenever dependencies change:
 
 - `libraries.txt`
-- `sketches/Smaeenhouse/sketch.yaml`
+- `sketches/alpha/Smaeenhouse/sketch.yaml`
 - `scripts/setup-arduino.ps1`
 - `scripts/setup-arduino.sh`
 
@@ -130,7 +135,7 @@ Normal compile checks must not install missing dependencies. Run setup first whe
 
 ## Credentials
 
-Create a local `sketches/Smaeenhouse/Credentials.h` file based on `sketches/Smaeenhouse/Credentials.example.h`.
+Create a local `sketches/alpha/Smaeenhouse/Credentials.h` file based on `sketches/alpha/Smaeenhouse/Credentials.example.h`.
 
 **Important:** `Credentials.h` must not be committed to the repository. The check scripts temporarily copy `Credentials.example.h` only when no real credentials file exists, and remove that temporary file after compilation.
 

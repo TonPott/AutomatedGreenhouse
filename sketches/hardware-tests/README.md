@@ -2,9 +2,9 @@
 
 Manual module qualification sketches belong here.
 
-`hardware-tests/` is for validating whether an individual module, library, wiring concept, pin assignment, signal level, timing behavior, or sensor/actuator assumption is suitable for this project before production firmware relies on it.
+`sketches/hardware-tests/` is for validating whether an individual module, library, wiring concept, pin assignment, signal level, timing behavior, or sensor/actuator assumption is suitable for this project before production firmware relies on it.
 
-These tests are separate from production firmware and from planned OTA-capable system or diagnostic tests under `system-tests/`.
+These tests are separate from production firmware and from planned OTA-capable system or diagnostic tests under `sketches/system-tests/`.
 
 Hardware module qualification tests normally run locally on real hardware. They can document expected compile behavior and intended Serial output, but they cannot be fully validated in CI because sensors, actuators, signal levels, and timing behavior depend on the physical build.
 
@@ -12,17 +12,17 @@ Detailed documentation for a specific test belongs in that test folder's own `RE
 
 ## Available Sketches
 
-- `AD5263Test`
-- `ClockServiceTest`
-- `CQRTSL25911Test`
-- `FanControllerTest`
-- `HAInterfaceTest`
-- `LightControllerTest`
-- `MoistureSensorTest`
-- `NetworkDiagnosticsTest`
-- `NetworkManagerTest`
-- `PersistentConfigTest`
-- `ShtModuleTest`
+- `00_ClockServiceTest`
+- `01_FanControllerTest`
+- `02_HAInterfaceTest`
+- `03_LightControllerTest`
+- `04_MoistureSensorTest`
+- `05_NetworkManagerTest`
+- `06_PersistentConfigTest`
+- `07_ShtModuleTest`
+- `08_AD5263Test`
+- `09_CQRTSL25911Test`
+- `10_NetworkDiagnosticsTest`
 
 Credential and network requirements must be documented in each test folder's README when they apply.
 
@@ -35,14 +35,14 @@ Default production compile:
 - Windows: `.\scripts\check-arduino.ps1`
 - Linux/macOS: `./scripts/check-arduino.sh`
 
-The default production sketch is `sketches/Smaeenhouse`.
+The default production sketch is `sketches/alpha/Smaeenhouse`.
 
 Hardware test compile:
 
 - Windows PowerShell:
-  - `$env:SKETCH = "hardware-tests/<test-folder>"`
+  - `$env:SKETCH = "sketches/hardware-tests/<test-folder>"`
   - `.\scripts\check-arduino.ps1`
-- Linux/macOS: `SKETCH=hardware-tests/<test-folder> ./scripts/check-arduino.sh`
+- Linux/macOS: `SKETCH=sketches/hardware-tests/<test-folder> ./scripts/check-arduino.sh`
 
 Hardware test folders normally do not contain their own `sketch.yaml`; therefore the scripts compile them with the `FQBN` fallback. If a future test needs its own profile, add a local `sketch.yaml` to that test folder deliberately.
 
@@ -58,6 +58,6 @@ Hardware test folders normally do not contain their own `sketch.yaml`; therefore
 
 ## Relationship To System Tests
 
-Use `system-tests/` for planned OTA-capable system or diagnostic tests that involve installed-system debugging, multi-module behavior, long-running diagnosis, or remote iteration.
+Use `sketches/system-tests/` for planned OTA-capable system or diagnostic tests that involve installed-system debugging, multi-module behavior, long-running diagnosis, or remote iteration.
 
-Do not treat `hardware-tests/` as the place for OTA system-test workflows. Module qualification tests may be simpler and more manual than system tests, and Serial output remains the primary local diagnostic interface.
+Do not treat `sketches/hardware-tests/` as the place for OTA system-test workflows. Module qualification tests may be simpler and more manual than system tests, and Serial output remains the primary local diagnostic interface.

@@ -96,7 +96,7 @@ arduino-cli lib install AD5263@0.1.4
 arduino-cli lib install JC_EEPROM@1.0.10
 arduino-cli lib install Streaming@6.3.0
 
-if (Test-Path (Join-Path $RepoRoot "sketches/Smaeenhouse/sketch.yaml")) {
+if (Test-Path (Join-Path $RepoRoot "sketches/alpha/Smaeenhouse/sketch.yaml")) {
     & (Join-Path $PSScriptRoot "check-arduino.ps1")
 }
 

@@ -61,7 +61,7 @@ Subscribe to `smaeenhouse/test/ota_uptime/#` to inspect the generated uptime sta
 Compile from the repository root:
 
 ```powershell
-$env:SKETCH = "system-tests/OtaSmokeTest"
+$env:SKETCH = "sketches/system-tests/00_OtaSmokeTest"
 .\scripts\check-arduino.ps1
 ```
 
@@ -83,6 +83,7 @@ mDNS is not required. A fixed IP or normal DNS hostname is the default workflow.
 When a Serial host is connected at 115200 baud, the sketch reports:
 
 - WiFi connect, loss, timeout, and reconnect events
+- cumulative WiFi join, connect-timeout, and NINA module-reset counters
 - assigned IP address and RSSI
 - OTA readiness and any poll-gap violation over two seconds
 - MQTT connection state
@@ -96,6 +97,7 @@ No Serial write is attempted while native USB Serial is unavailable.
 - WiFi connects before OTA and MQTT start.
 - OTA remains reachable while MQTT or Home Assistant is unavailable.
 - A WiFi outage causes repeated non-blocking reconnect attempts until service returns.
+- After three consecutive WiFi connect timeouts, the sketch reinitializes the NINA interface and continues retrying without rebooting the SAMD21.
 - OTA is restarted after every WiFi reconnection.
 - MQTT reconnects automatically through ArduinoHA.
 - Uptime increases in 30-second publication steps and resets after an OTA reboot.

@@ -132,7 +132,7 @@ temporary_credentials_if_needed() {
   sketch_path="$1"
   credentials_path="$sketch_path/Credentials.h"
   example_path="$sketch_path/Credentials.example.h"
-  production_example_path="$REPO_ROOT/sketches/Smaeenhouse/Credentials.example.h"
+  production_example_path="$REPO_ROOT/sketches/alpha/Smaeenhouse/Credentials.example.h"
 
   if [[ -f "$credentials_path" ]]; then
     return
@@ -153,7 +153,7 @@ temporary_credentials_if_needed() {
 
 initialize_arduino_config
 
-DEFAULT_SKETCH="sketches/Smaeenhouse"
+DEFAULT_SKETCH="sketches/alpha/Smaeenhouse"
 FQBN="${FQBN:-arduino:samd:nano_33_iot}"
 SKETCH="${SKETCH:-$DEFAULT_SKETCH}"
 PROFILE="${PROFILE:-nano33iot}"
