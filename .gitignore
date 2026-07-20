@@ -17,3 +17,5 @@ git_filter_repo.py
 /exports/
 /ha-history/
 /home-assistant-history/
+OTAupload.ps1
+/worktress/
