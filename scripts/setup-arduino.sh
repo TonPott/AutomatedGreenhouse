@@ -208,9 +208,9 @@ arduino-cli core install arduino:samd
 if ! arduino-cli --log-level trace lib update-index; then
   echo "Warning: Arduino library index update failed; continuing with cached library index if available." >&2
 fi
-install_profile_libraries "$REPO_ROOT/sketches/Smaeenhouse/sketch.yaml"
+install_profile_libraries "$REPO_ROOT/sketches/alpha/Smaeenhouse/sketch.yaml"
 
-if [[ -f "$REPO_ROOT/sketches/Smaeenhouse/sketch.yaml" ]]; then
+if [[ -f "$REPO_ROOT/sketches/alpha/Smaeenhouse/sketch.yaml" ]]; then
   bash "$REPO_ROOT/scripts/check-arduino.sh"
 fi
 

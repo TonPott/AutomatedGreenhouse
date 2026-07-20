@@ -66,14 +66,14 @@ Copy `Credentials.example.h` to the ignored local file `Credentials.h`, then set
 Compile from the repository root:
 
 ```powershell
-$env:SKETCH = "system-tests/PersistenceRtcBaseline"
+$env:SKETCH = "sketches/system-tests/04_PersistenceRtcBaseline"
 .\scripts\check-arduino.ps1
 ```
 
 On Linux / Codex Cloud / GitHub Actions:
 
 ```bash
-SKETCH=system-tests/PersistenceRtcBaseline ./scripts/check-arduino.sh
+SKETCH=sketches/system-tests/04_PersistenceRtcBaseline ./scripts/check-arduino.sh
 ```
 
 Upload over OTA from the currently running system test, or upload over USB if OTA is not available.

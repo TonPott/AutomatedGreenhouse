@@ -33,16 +33,16 @@ The repository is in a migration phase based on existing firmware.
 ### 1. Keep The Project Structure
 
 - The project remains a classic Arduino sketch project.
-- The production sketch is located at `sketches/Smaeenhouse/Smaeenhouse.ino`.
-- Production header and CPP files remain in `sketches/Smaeenhouse/` unless explicitly requested otherwise.
-- Hardware test sketches live under `hardware-tests/`.
+- The production sketch is located at `sketches/alpha/Smaeenhouse/Smaeenhouse.ino`.
+- Production header and CPP files remain in `sketches/alpha/Smaeenhouse/` unless explicitly requested otherwise.
+- Hardware test sketches live under `sketches/hardware-tests/`.
 - Do not reintroduce the old root-level `Smaeenhouse/` or `module-sketches/` folders as parallel runtime paths.
 
 ### 2. Never Overwrite Credentials
 
-- `sketches/Smaeenhouse/Credentials.h` is local and secret.
+- `sketches/alpha/Smaeenhouse/Credentials.h` is local and secret.
 - Never write real credentials to the repository.
-- Only `sketches/Smaeenhouse/Credentials.example.h` may be changed as a template.
+- Only `sketches/alpha/Smaeenhouse/Credentials.example.h` may be changed as a template.
 - Compile scripts may create a temporary `Credentials.h` from the example only when no real file exists, and must remove that temporary file afterwards.
 
 ### 3. Use The Repository Scripts
@@ -118,7 +118,7 @@ If a new library is still needed:
 
 - document the reason in the change
 - update `libraries.txt`
-- update `sketches/Smaeenhouse/sketch.yaml`
+- update `sketches/alpha/Smaeenhouse/sketch.yaml`
 - update setup scripts when the dependency must be installed by Arduino CLI
 
 ### 11. Republish Home Assistant States Cleanly
@@ -169,7 +169,7 @@ Before larger code changes:
 - Do not duplicate roadmap items into README/SPEC/MODULES unless they are actual current requirements.
 - Keep open tasks in `ROADMAP.md` and historical rationale in `DECISIONS.md`.
 - Write new or changed detailed test behavior in the README of the specific test folder.
-- Keep root test READMEs such as `hardware-tests/README.md` and `system-tests/README.md` limited to global conventions, index/orientation help, and cross-test rules.
+- Keep root test READMEs such as `sketches/hardware-tests/README.md` and `sketches/system-tests/README.md` limited to global conventions, index/orientation help, and cross-test rules.
 
 If code and documentation contradict each other, documentation comes first, unless the user explicitly says otherwise.
 
@@ -205,7 +205,7 @@ For documentation-only changes, diff review is sufficient.
 
 ## Not Wanted
 
-- large logic blocks directly in `sketches/Smaeenhouse/Smaeenhouse.ino`
+- large logic blocks directly in `sketches/alpha/Smaeenhouse/Smaeenhouse.ino`
 - hidden global side effects
 - blocking `delay()` chains
 - vendoring/checking in libraries without a reason

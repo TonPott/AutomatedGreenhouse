@@ -28,7 +28,7 @@ Serial commands:
 Compile check:
 
 ```powershell
-$env:SKETCH = "hardware-tests/NetworkDiagnosticsTest"
+$env:SKETCH = "sketches/hardware-tests/10_NetworkDiagnosticsTest"
 .\scripts\check-arduino.ps1
 ```
 

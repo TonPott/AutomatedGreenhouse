@@ -4,7 +4,7 @@ This plan defines the ordered system-test path from the completed OTA smoke test
 
 ## Planning Principles
 
-- `system-tests/OtaSmokeTest` is the completed baseline and is not repeated here as open work.
+- `sketches/system-tests/00_OtaSmokeTest` is the completed baseline and is not repeated here as open work.
 - Create one new sketch at a time. Do not create the next sketch until the previous sketch's required functions have been confirmed on the installed system.
 - Each new sketch must preserve the confirmed runtime behavior from the previous sketch unless a later README explicitly documents a deliberate replacement.
 - After the OTA smoke, safe-output, I2C, and SHT hardware baselines, long-run system tests should publish a focused set of production-relevant Home Assistant entities through the `Grow Controller Tests` device so Home Assistant can retain useful history graphs during multi-day runs. Temporary diagnostics may still use direct MQTT test topics or Serial output instead of adding extra HA entities.
@@ -15,7 +15,7 @@ This plan defines the ordered system-test path from the completed OTA smoke test
 
 ## Required Per-Sketch README Additions
 
-Each new sketch README must include the standard per-test documentation from `system-tests/README.md` plus this explicit section:
+Each new sketch README must include the standard per-test documentation from `sketches/system-tests/README.md` plus this explicit section:
 
 ```text
 ## Results And Notes For The Next Test
@@ -34,7 +34,7 @@ If the test is not yet run, leave this section with `Not run yet` and the exact 
 
 ### 0. OTA Smoke Baseline - Complete
 
-Existing sketch: `system-tests/OtaSmokeTest`
+Existing sketch: `sketches/system-tests/00_OtaSmokeTest`
 
 Confirmed scope:
 

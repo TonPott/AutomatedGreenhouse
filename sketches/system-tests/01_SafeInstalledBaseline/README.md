@@ -62,14 +62,14 @@ The OTA password is independent of the WiFi password. Never commit `Credentials.
 Compile from the repository root:
 
 ```powershell
-$env:SKETCH = "system-tests/SafeInstalledBaseline"
+$env:SKETCH = "sketches/system-tests/01_SafeInstalledBaseline"
 .\scripts\check-arduino.ps1
 ```
 
 On Linux / Codex Cloud / GitHub Actions:
 
 ```bash
-SKETCH=system-tests/SafeInstalledBaseline ./scripts/check-arduino.sh
+SKETCH=sketches/system-tests/01_SafeInstalledBaseline ./scripts/check-arduino.sh
 ```
 
 Upload the test once over USB or upload it over OTA from the completed `OtaSmokeTest` if that baseline is already running and reachable.

@@ -57,14 +57,14 @@ Copy `Credentials.example.h` to the ignored local file `Credentials.h`, then set
 Compile from the repository root:
 
 ```powershell
-$env:SKETCH = "system-tests/I2cPassiveBaseline"
+$env:SKETCH = "sketches/system-tests/02_I2cPassiveBaseline"
 .\scripts\check-arduino.ps1
 ```
 
 On Linux / Codex Cloud / GitHub Actions:
 
 ```bash
-SKETCH=system-tests/I2cPassiveBaseline ./scripts/check-arduino.sh
+SKETCH=sketches/system-tests/02_I2cPassiveBaseline ./scripts/check-arduino.sh
 ```
 
 Upload over OTA from the confirmed `SafeInstalledBaseline` test, or upload over USB if OTA is not available.

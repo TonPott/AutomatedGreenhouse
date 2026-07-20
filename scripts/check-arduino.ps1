@@ -124,7 +124,7 @@ function Get-SafeSketchName([string] $SketchPath) {
 function New-TemporaryCredentialsIfNeeded([string] $SketchPath) {
     $CredentialsPath = Join-Path $SketchPath "Credentials.h"
     $ExamplePath = Join-Path $SketchPath "Credentials.example.h"
-    $ProductionExamplePath = Join-Path $RepoRoot "sketches/Smaeenhouse/Credentials.example.h"
+    $ProductionExamplePath = Join-Path $RepoRoot "sketches/alpha/Smaeenhouse/Credentials.example.h"
 
     if (Test-Path -LiteralPath $CredentialsPath) {
         return $null
@@ -145,7 +145,7 @@ function New-TemporaryCredentialsIfNeeded([string] $SketchPath) {
 
 Initialize-ArduinoConfig
 
-$DefaultSketch = "sketches/Smaeenhouse"
+$DefaultSketch = "sketches/alpha/Smaeenhouse"
 $Sketch = if ($env:SKETCH) { $env:SKETCH } else { $DefaultSketch }
 $Fqbn = if ($env:FQBN) { $env:FQBN } else { "arduino:samd:nano_33_iot" }
 $Profile = if ($env:PROFILE) { $env:PROFILE } else { "nano33iot" }

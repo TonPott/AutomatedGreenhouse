@@ -655,7 +655,7 @@ The device connects to:
 - MQTT broker
 
 ### 12.2 Credentials
-All credentials are in local `sketches/Smaeenhouse/Credentials.h`, at least:
+All credentials are in local `sketches/alpha/Smaeenhouse/Credentials.h`, at least:
 - WiFi SSID
 - WiFi password
 - MQTT Host

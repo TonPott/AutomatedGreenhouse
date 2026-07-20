@@ -34,8 +34,8 @@ Status: accepted
 - `MODULES.md`
 - `HARDWARE.md`
 - `docs/entity-model.md`
-- `sketches/Smaeenhouse/LightSensor.*`
-- `sketches/Smaeenhouse/HAInterface.*`
+- `sketches/alpha/Smaeenhouse/LightSensor.*`
+- `sketches/alpha/Smaeenhouse/HAInterface.*`
 
 ## 2026-05 – AD5263 replaces the old PWM/RC/PC817 dimmer concept
 
@@ -65,9 +65,9 @@ Status: accepted
 
 - `SPEC.md`
 - `MODULES.md`
-- `sketches/Smaeenhouse/Config.h`
-- `sketches/Smaeenhouse/LightController.*`
-- `hardware-tests/AD5263Test/AD5263Test.ino`
+- `sketches/alpha/Smaeenhouse/Config.h`
+- `sketches/alpha/Smaeenhouse/LightController.*`
+- `sketches/hardware-tests/08_AD5263Test/08_AD5263Test.ino`
 
 ## 2026-05 – Lamp dimmer direction is low resistance = low brightness, high resistance = high brightness
 
@@ -96,9 +96,9 @@ Status: accepted
 
 - `SPEC.md`
 - `MODULES.md`
-- `sketches/Smaeenhouse/Config.h`
-- `sketches/Smaeenhouse/LightController.cpp`
-- `hardware-tests/AD5263Test/AD5263Test.ino`
+- `sketches/alpha/Smaeenhouse/Config.h`
+- `sketches/alpha/Smaeenhouse/LightController.cpp`
+- `sketches/hardware-tests/08_AD5263Test/08_AD5263Test.ino`
 
 ## 2026-05 – Project documentation is maintained in English
 
@@ -185,8 +185,8 @@ Status: accepted
 
 ### Affected Areas
 
-- `hardware-tests/NetworkDiagnosticsTest/NetworkDiagnosticsTest.ino`
-- `hardware-tests/NetworkDiagnosticsTest/README.md`
+- `sketches/hardware-tests/10_NetworkDiagnosticsTest/10_NetworkDiagnosticsTest.ino`
+- `sketches/hardware-tests/10_NetworkDiagnosticsTest/README.md`
 
 ## 2026-06 – Dependency declarations remain duplicated for now
 
@@ -194,7 +194,7 @@ Status: accepted
 
 ### Context
 
-- Arduino dependencies are currently listed in multiple places: `libraries.txt`, `sketches/Smaeenhouse/sketch.yaml`, setup scripts, and check scripts.
+- Arduino dependencies are currently listed in multiple places: `libraries.txt`, `sketches/alpha/Smaeenhouse/sketch.yaml`, setup scripts, and check scripts.
 - The CQRTSL25911 / TSL25911 integration added Adafruit sensor dependencies and exposed the risk that setup and check script lists can drift apart.
 
 ### Decision
@@ -211,7 +211,7 @@ Status: accepted
 ### Affected Areas
 
 - `libraries.txt`
-- `sketches/Smaeenhouse/sketch.yaml`
+- `sketches/alpha/Smaeenhouse/sketch.yaml`
 - `scripts/setup-arduino.ps1`
 - `scripts/setup-arduino.sh`
 - `scripts/check-arduino.ps1`
@@ -224,15 +224,15 @@ Status: accepted
 
 ### Context
 
-- Existing sketches under `hardware-tests/` validate individual modules, libraries, wiring concepts, signal behavior, and practical hardware assumptions.
+- Existing sketches under `sketches/hardware-tests/` validate individual modules, libraries, wiring concepts, signal behavior, and practical hardware assumptions.
 - Planned OTA-capable tests need a different shape because they support installed-system diagnostics, multi-module behavior, longer-running observations, and remote iteration.
 - Home Assistant discovery and entities are useful for production integration, but they are not the best default interface for focused system-test control and capture.
 - mDNS can be unreliable on some networks, especially across VLAN boundaries, while fixed IP addresses or normal DNS hostnames can still provide a stable OTA upload target.
 
 ### Decision
 
-- Keep module qualification tests under `hardware-tests/`.
-- Plan OTA-capable system and diagnostic tests separately under `system-tests/`.
+- Keep module qualification tests under `sketches/hardware-tests/`.
+- Plan OTA-capable system and diagnostic tests separately under `sketches/system-tests/`.
 - Do not make Home Assistant the standard system-test interface.
 - Prefer Serial for required local diagnostics and direct MQTT test topics for optional remote interaction.
 - Use fixed-IP or normal DNS-hostname upload as the default OTA test workflow.
@@ -249,9 +249,9 @@ Status: accepted
 
 ### Affected Areas
 
-- `hardware-tests/README.md`
-- `system-tests/README.md`
-- `system-tests/OtaSmokeTest/README.md`
+- `sketches/hardware-tests/README.md`
+- `sketches/system-tests/README.md`
+- `sketches/system-tests/00_OtaSmokeTest/README.md`
 - `ROADMAP.md`
 - `AGENTS.md`
 
@@ -281,8 +281,8 @@ Status: accepted
 - `SPEC.md`
 - `MODULES.md`
 - `docs/entity-model.md`
-- `sketches/Smaeenhouse/MoistureSensor.*`
-- `sketches/Smaeenhouse/HAInterface.*`
+- `sketches/alpha/Smaeenhouse/MoistureSensor.*`
+- `sketches/alpha/Smaeenhouse/HAInterface.*`
 
 ## 2026-05 – Soil depth correction uses a simple linear model
 
@@ -311,6 +311,6 @@ Status: accepted
 - `SPEC.md`
 - `MODULES.md`
 - `docs/entity-model.md`
-- `sketches/Smaeenhouse/Config.h`
-- `sketches/Smaeenhouse/MoistureSensor.*`
-- `sketches/Smaeenhouse/HAInterface.*`
+- `sketches/alpha/Smaeenhouse/Config.h`
+- `sketches/alpha/Smaeenhouse/MoistureSensor.*`
+- `sketches/alpha/Smaeenhouse/HAInterface.*`

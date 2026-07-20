@@ -61,7 +61,7 @@ Subscribe to `smaeenhouse/test/ota_uptime/#` to inspect the generated uptime sta
 Compile from the repository root:
 
 ```powershell
-$env:SKETCH = "system-tests/OtaSmokeTest"
+$env:SKETCH = "sketches/system-tests/00_OtaSmokeTest"
 .\scripts\check-arduino.ps1
 ```
 

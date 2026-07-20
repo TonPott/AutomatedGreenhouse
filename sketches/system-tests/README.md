@@ -2,11 +2,11 @@
 
 System tests are planned test sketches for installed-system debugging, multi-module behavior, long-running diagnosis, and later OTA-based development workflows.
 
-They are intentionally separate from `hardware-tests/`.
+They are intentionally separate from `sketches/hardware-tests/`.
 
-## Relationship To `hardware-tests/`
+## Relationship To `sketches/hardware-tests/`
 
-`hardware-tests/` contains module qualification tests. Those tests answer questions such as:
+`sketches/hardware-tests/` contains module qualification tests. Those tests answer questions such as:
 
 * Can this module, library, wiring concept, or signal behavior be used for this project?
 * What raw data does the module produce under known local test conditions?
@@ -37,17 +37,17 @@ There is no standalone operating mode in the current project phase. Every OTA-ca
 
 ## Current System Tests
 
-* [`OtaSmokeTest`](OtaSmokeTest/) - completed OTA, WiFi, and MQTT uptime smoke baseline.
-* [`SafeInstalledBaseline`](SafeInstalledBaseline/) - safe installed-system baseline for connected actuator outputs and direct MQTT test status.
-* [`I2cPassiveBaseline`](I2cPassiveBaseline/) - known-address I2C inventory while preserving confirmed safe actuator states.
-* [`ShtHardwareBaseline`](ShtHardwareBaseline/) - SHT measurements, stored alert limits, address checks, and alert interrupt monitoring.
-* [`PersistenceRtcBaseline`](PersistenceRtcBaseline/) - AT24C32 persistence, DS3231 time/alarm handling, and HA long-run telemetry with safe actuator outputs.
+* [`00_OtaSmokeTest`](00_OtaSmokeTest/) - completed OTA, WiFi, and MQTT uptime smoke baseline.
+* [`01_SafeInstalledBaseline`](01_SafeInstalledBaseline/) - safe installed-system baseline for connected actuator outputs and direct MQTT test status.
+* [`02_I2cPassiveBaseline`](02_I2cPassiveBaseline/) - known-address I2C inventory while preserving confirmed safe actuator states.
+* [`03_ShtHardwareBaseline`](03_ShtHardwareBaseline/) - SHT measurements, stored alert limits, address checks, and alert interrupt monitoring.
+* [`04_PersistenceRtcBaseline`](04_PersistenceRtcBaseline/) - AT24C32 persistence, DS3231 time/alarm handling, and HA long-run telemetry with safe actuator outputs.
 
 ## Required Per-Test Documentation
 
 Every system test must have its own `README.md` in the test folder.
 
-The root `system-tests/README.md` describes global conventions only. Detailed behavior of a specific test belongs in that test's own README.
+The root `sketches/system-tests/README.md` describes global conventions only. Detailed behavior of a specific test belongs in that test's own README.
 
 Each test README should document:
 
@@ -136,7 +136,7 @@ For OTA-capable system tests:
 * Long-running actions should normally be implemented as non-blocking state machines.
 * OTA polling must continue during long-running tests.
 
-Module qualification tests in `hardware-tests/` may be more permissive, but long waits should still be documented and announced where practical.
+Module qualification tests in `sketches/hardware-tests/` may be more permissive, but long waits should still be documented and announced where practical.
 
 ## Safety Rules
 
@@ -159,8 +159,8 @@ Exact behavior must be documented by each test.
 A future shared runtime layer may be added for OTA-capable system tests, for example:
 
 ```text
-system-tests/common/TestRuntime.h
-system-tests/common/TestRuntime.cpp
+sketches/system-tests/common/TestRuntime.h
+sketches/system-tests/common/TestRuntime.cpp
 ```
 
 Expected responsibilities:
