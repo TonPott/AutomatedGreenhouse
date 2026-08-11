@@ -38,7 +38,7 @@ constexpr char TEST_ID[] = "safe_installed_baseline";
 constexpr char MQTT_STATUS_TOPIC[] = "smaeenhouse/test/safe_installed_baseline/status";
 constexpr char MQTT_EVENT_TOPIC[] = "smaeenhouse/test/safe_installed_baseline/event";
 
-constexpr uint8_t PIN_SHT_ALERT = 7;
+constexpr uint8_t PIN_SHT_ALERT = A7;
 constexpr uint8_t PIN_RTC_ALARM = 10;
 constexpr uint8_t PIN_FAN_SWITCH = 2;
 constexpr uint8_t PIN_FAN_TACH = A1;
@@ -79,6 +79,10 @@ void onRtcAlarm() {
 
 void onFanTachPulse() {
   fanTachPulseCount++;
+}
+
+bool pinSupportsExternalInterrupt(uint8_t pin) {
+  return pin < PINS_COUNT && g_APinDescription[pin].ulExtInt != EXTERNAL_INT_NONE;
 }
 
 enum class WifiConnectState : uint8_t {
@@ -134,9 +138,15 @@ void configurePinsForSafeState() {
   pinMode(PIN_LIGHT_SENSOR_INT, INPUT_PULLUP);
   pinMode(PIN_SOIL_MOISTURE, INPUT);
 
-  attachInterrupt(digitalPinToInterrupt(PIN_SHT_ALERT), onShtAlert, FALLING);
-  attachInterrupt(digitalPinToInterrupt(PIN_RTC_ALARM), onRtcAlarm, FALLING);
-  attachInterrupt(digitalPinToInterrupt(PIN_FAN_TACH), onFanTachPulse, FALLING);
+  if (pinSupportsExternalInterrupt(PIN_SHT_ALERT)) {
+    attachInterrupt(digitalPinToInterrupt(PIN_SHT_ALERT), onShtAlert, FALLING);
+  }
+  if (pinSupportsExternalInterrupt(PIN_RTC_ALARM)) {
+    attachInterrupt(digitalPinToInterrupt(PIN_RTC_ALARM), onRtcAlarm, FALLING);
+  }
+  if (pinSupportsExternalInterrupt(PIN_FAN_TACH)) {
+    attachInterrupt(digitalPinToInterrupt(PIN_FAN_TACH), onFanTachPulse, FALLING);
+  }
 }
 
 void printIpAddress(const __FlashStringHelper* label, const IPAddress& address) {

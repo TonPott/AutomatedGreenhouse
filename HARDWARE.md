@@ -92,7 +92,15 @@ Reference mapping:
 - `50 % => W2 = 0,   W1 = 0`
 - `100 % => W2 = 255, W1 = 0`
 
-The relay remains responsible for hard switching the 230 V supply.
+The ViparSpectra P1000 documentation's nominal `5..100 %` active range is not yet accepted as the
+installed lamp's actual boundary. System Test 09 deliberately exposes the complete `0..100 %` AD5263
+mapping so the first reliably illuminated setting and the effective full-output setting can be measured
+with the final driver and wiring. Any resulting lower/upper bounds remain compile-time installation
+configuration and are not Home Assistant settings.
+
+The relay remains responsible for hard switching the 230 V supply. A `0 %` firmware target is therefore
+the canonical off state and must result in an open relay; the AD5263 resistance setting alone is not accepted
+as a mains-off mechanism.
 
 ## Fan Tach Signal Conditioning
 

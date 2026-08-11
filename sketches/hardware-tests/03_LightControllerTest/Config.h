@@ -3,7 +3,7 @@
 #include <Arduino.h>
 
 // Pin mapping (Arduino Nano 33 IoT)
-constexpr uint8_t PIN_SHT_ALERT = 7;
+constexpr uint8_t PIN_SHT_ALERT = A7;
 constexpr uint8_t PIN_FAN_SWITCH = 2;
 constexpr uint8_t PIN_FAN_TACH = A1;
 constexpr uint8_t PIN_LIGHT_PWM = 4;

@@ -203,9 +203,9 @@ The Light entity is only fully effective when:
 - `light_auto_mode = OFF`
 
 When `light_auto_mode = ON`:
-- brightness changes may optionally be treated as temporary correction
+- manual brightness and on/off commands are rejected and the canonical state is republished
 - HA schedule triggers are ignored
-- on/off may be ignored or disabled
+- no temporary HA brightness override is active
 
 ## Future Lux-Hour Assistance
 
@@ -243,6 +243,8 @@ Persistence:
 ### Arduino Light Schedule
 - `light_on_time_minutes`
 - `light_off_time_minutes`
+- `light_on_target_percent`
+- `light_off_target_percent`
 - `light_dim_minutes`
 
 Direction:
@@ -251,9 +253,15 @@ Direction:
 Persistence:
 - yes, external AT24C32 EEPROM via JC_EEPROM
 
-Note:
+Notes:
 - time format = minutes since midnight
-- changes must also update the DS3231 alarm registers
+- time changes must also update the DS3231 alarm registers
+- `light_on_target_percent` is the Alarm1 target and defaults to `100 %`
+- `light_off_target_percent` is the Alarm2 target and defaults to `0 %`
+- both target entities accept `0..100 %` with step `1`
+- `0 %` is the canonical relay-off target
+- System Test 09 accepts and republishes the full `0..100 %` range without a provisional minimum clamp for real-lamp characterization
+- any later lower/upper active-light bounds are installation configuration, not Home Assistant entities
 
 ### Soil Moisture Calibration
 - `soil_air`

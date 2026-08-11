@@ -27,21 +27,31 @@ This directory is a planned test area. It may contain documentation before OTA-c
 
 Production firmware must not be treated as OTA-capable merely because this directory documents OTA-capable tests. Production OTA remains a future goal until explicitly implemented and documented in the production firmware.
 
+## Shared SHT Alert Pin
+
+All active system-test configurations use SHT ALERT on `A7` (`PB03` / `EXTINT3`). Corrective Tests 05 and 08 validate the actual Nano 33 IoT core descriptor, configure the SHT31 push-pull active-high signal as `INPUT`, and call `attachInterrupt(digitalPinToInterrupt(A7), ..., RISING)`. Test 03 retains its older edge configuration and is not used as physical-polarity acceptance evidence. Historical D7 polling results remain historical evidence; production pin documentation is updated only after the shared A7 hardware acceptance passes.
+
 ## Test Sequence Plan
 
-The ordered plan for building OTA-capable installed-system tests is maintained in [`TEST_PLAN.md`](TEST_PLAN.md). Follow that plan when adding sketches: create only the next test in the sequence after the previous test README records confirmed results and carry-forward notes.
+The ordered plan for building OTA-capable installed-system tests is maintained in [`TEST_PLAN.md`](TEST_PLAN.md). Follow that plan when adding sketches. A successor may be prepared early only when the user explicitly requests it; its README must state the unmet entry condition, and it must not be installed until the preceding test records the required confirmed result.
 
 ## Network Recovery Rule
 
-There is no standalone operating mode in the current project phase. Every OTA-capable system test must therefore maintain WiFi as its highest-priority runtime dependency, retry indefinitely after link loss, and reinitialize the NINA interface after repeated connection timeouts. Test-specific READMEs must record controlled outage recovery and long-run observations before the tested feature is considered confirmed.
+Every OTA-capable system test keeps retrying WiFi indefinitely after link loss and reinitializes the NINA interface after repeated connection timeouts. A test may deliberately validate a local RTC/sensor control path while disconnected, but that local path must not stop network recovery or OTA polling after reconnection. Test-specific READMEs record controlled outage recovery and long-run observations before the tested feature is considered confirmed.
 
 ## Current System Tests
 
 * [`00_OtaSmokeTest`](00_OtaSmokeTest/) - completed OTA, WiFi, and MQTT uptime smoke baseline.
 * [`01_SafeInstalledBaseline`](01_SafeInstalledBaseline/) - safe installed-system baseline for connected actuator outputs and direct MQTT test status.
 * [`02_I2cPassiveBaseline`](02_I2cPassiveBaseline/) - known-address I2C inventory while preserving confirmed safe actuator states.
-* [`03_ShtHardwareBaseline`](03_ShtHardwareBaseline/) - SHT measurements, stored alert limits, address checks, and alert interrupt monitoring.
-* [`04_PersistenceRtcBaseline`](04_PersistenceRtcBaseline/) - AT24C32 persistence, DS3231 time/alarm handling, and HA long-run telemetry with safe actuator outputs.
+* [`03_ShtHardwareBaseline`](03_ShtHardwareBaseline/) - reopened SHT transaction/recovery baseline with unchanged-limit write/readback cycles and sequenced HA evidence.
+* [`04_PersistenceRtcBaseline`](04_PersistenceRtcBaseline/) - completed persistence/RTC baseline; focused v1.1.0 runtime EEPROM revalidation accepted on 2026-08-10.
+* [`05_ShtAlertFanClosedLoopTest`](05_ShtAlertFanClosedLoopTest/) - corrective v1.1.4 implemented and reopened for focused SHT, EEPROM, active-high A7, soak, and OTA acceptance; historically accepted fan-control steps remain valid.
+* [`06_SoilMoistureCalibrationTest`](06_SoilMoistureCalibrationTest/) - completed soil raw/percent measurement, HA-controlled calibration, depth behavior, persistence, and reconnect validation; invalid `0 mm` remains an optional direct-MQTT negative test.
+* [`07_Ad5263DimmerSafeReadbackTest`](07_Ad5263DimmerSafeReadbackTest/) - completed AD5263/readback, injection/recovery, OTA, reconnect, and final-soak validation with the relay held open.
+* [`08_LightRelayManualHaControlTest`](08_LightRelayManualHaControlTest/) - light behavior complete; corrective v1.0.3 infrastructure revision reopened for focused SHT, EEPROM, A7, availability, and OTA confirmation.
+* [`08a_LocalLightScheduleRuntimeTest`](08a_LocalLightScheduleRuntimeTest/) - separate-device interim test for a persistent local RTC schedule, non-blocking NTP/DST handling, minute raw sensors, and network-independent light control.
+* [`09_ArduinoScheduleRtcLightTest`](09_ArduinoScheduleRtcLightTest/) - ready for unrestricted real-lamp boundary characterization and persistent Alarm1/Alarm2 schedule-target validation.
 
 ## Required Per-Test Documentation
 
@@ -69,14 +79,25 @@ Each test README should document:
 
 ## Interaction Model
 
-Serial output remains required for local bench validation and basic diagnostics.
+Serial output remains useful for local bench validation and basic diagnostics, but installed-system acceptance must not require a direct USB connection. For installed tests, every required observation must be available remotely.
 
-For remote interaction, early bring-up tests may use direct MQTT test topics only. Longer system tests that benefit from retained history should publish a focused set of production-relevant Home Assistant entities through the `Grow Controller Tests` device, while keeping extra diagnostics under direct MQTT test topics.
+When a test needs a time series or a multi-step result, Home Assistant is the authoritative collection path. Publish every step immediately through dedicated history entities with an explicit sequence/index value; do not rely on a periodic summary interval or MQTT Explorer to reconstruct intermediate states.
+
+For remote interaction, early bring-up tests may use direct MQTT test topics only. Longer system tests publish their required history through focused Home Assistant entities on the `Grow Controller Tests` device. Do not maintain a parallel diagnostic MQTT client or redundant status/event topics when the same evidence is available through Home Assistant.
 
 When a test changes its Home Assistant entity set, remove obsolete retained discovery and state topics from older test revisions so Home Assistant does not keep stale entities.
 
 A system test must not require Home Assistant for OTA availability.
 
+## Boot Identity Publication
+
+Every future system-test sketch must define a stable sketch name and an explicit sketch version. It exposes both together through exactly one shared Home Assistant test-device entity:
+
+* `sensor.sketch_identity` with value `<sketch name> v<version>`
+
+The default is one publication per MCU boot after Home Assistant MQTT first becomes available. A failed publication is retried, while an MQTT reconnect during the same MCU boot normally does not duplicate a successful identity publication. A test-specific README may require republishing the same combined identity on each HA connection when reconnect behavior itself is under acceptance, as in Test 08a. Separate `sensor.sketch_name` and `sensor.sketch_version` entities must not be created by future tests; a successor that replaces them must clear their retained discovery and state topics.
+
+Do not mirror this identity to a redundant direct `boot_identity` MQTT topic. All identity publication happens in normal loop context, never in an ISR.
 ## Suggested MQTT Topic Convention
 
 Future MQTT-capable system tests should use a clearly separated test namespace, for example:

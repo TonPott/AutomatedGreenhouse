@@ -67,6 +67,7 @@ Central compile-time constants.
   - `LIGHT_DIM_W1_RDAC_MIN_EFFECTIVE`
   - `LIGHT_DIM_W1_RDAC_MAX_EFFECTIVE`
 - `LIGHT_DIM_MAPPING_SPLIT_PERCENT = 50` (split between W2 phase and W1 phase)
+- installation-specific lower/upper active-light bounds after real-lamp validation (compile-time only; no provisional `5 %` clamp)
 - Note: The identifiers are documented as examples; mandatory are the separate per-channel limits and the direction `minimal resistance = 0 %`, `maximal resistance = 100 %`.
 
 - `DEFAULT_TEMP_HIGH_SET`
@@ -76,6 +77,8 @@ Central compile-time constants.
 
 - `DEFAULT_LIGHT_ON_TIME_MINUTES`
 - `DEFAULT_LIGHT_OFF_TIME_MINUTES`
+- `DEFAULT_LIGHT_ON_TARGET_PERCENT = 100`
+- `DEFAULT_LIGHT_OFF_TARGET_PERCENT = 0`
 - `DEFAULT_LIGHT_DIM_MINUTES`
 
 - `DEFAULT_SOIL_AIR`
@@ -128,6 +131,7 @@ A central struct, for example `PersistentConfigData`, with:
 
 - temp/hum thresholds
 - Arduino light times
+- `lightOnTargetPercent` and `lightOffTargetPercent` for the Arduino Alarm1/on and Alarm2/off target brightness values
 - Arduino dim duration
 - `fanAutoMode`
 - `lightAutoMode`
@@ -287,6 +291,7 @@ Control of AD5263 dimmer, SHDN pin, relay, and dimming requests.
 - no internal pull-up on SHDN
 - analog channel wiring: `Dim+ -> W2 -> B2 -> A1 -> W1 -> Dim-`
 - lamp dimmer input: minimal effective resistance / approximately `0 Ω` = `0 %`, maximal effective resistance / approximately `100 kΩ` = `100 %`
+- ViparSpectra P1000 nominal `5..100 %` range is reference information only until the final lamp/driver boundaries have been measured; the dimmer alone is not the hard-off mechanism
 
 ### Brightness Mapping (Mandatory)
 
@@ -301,12 +306,16 @@ Intermediate ranges:
 - `0..50 %`: first change channel 1 / `W1` so the total resistance rises from the minimum value to the midpoint
 - `50..100 %`: then change channel 2 / `W2` so the total resistance rises from the midpoint to the maximum value
 - used rheostat stretches: `A1-W1` on channel 1 and `W2-B2` on channel 2
+- `0 %` is the only canonical off target and results in an open relay
+- System Test 09 deliberately passes `0..100 %` through without a provisional minimum clamp so the real dark and full-output boundaries can be measured
+- after validation, any installation bounds must be applied consistently to manual commands, HA dim jobs, Arduino alarm targets, resume state, and dim-ramp interpolation
 
 Dimmer limits:
 
-- effective lower/upper limits are constrained through firmware constants
+- effective lower/upper limits are constrained through firmware constants after real-lamp validation
 - `0 Ω` is to be understood as minimal effective resistance or approximately `0 Ω`, because the AD5263 has residual resistance in rheostat mode
 - these limits are not configurable via HA
+- the installed lamp's first reliably illuminated value and effective full-output value must be bench-tested before final compile-time bounds are accepted
 
 ### Boot And Shutdown Sequence (Mandatory)
 
@@ -687,7 +696,7 @@ The module should be able to access other modules, for example by reference in t
 - `HASensor` (text) for `light_fault_reason`
 - `HASwitch` for Fan, FanAuto, LightAuto, HardPowerOff, fallback behavior
 - `HALight` for Grow-Light
-- `HANumber` for thresholds, times, dim duration, `number.soil_air`, `number.soil_water`, `number.soil_depth_mm`
+- `HANumber` for thresholds, times, `light_on_target_percent`, `light_off_target_percent`, dim duration, `number.soil_air`, `number.soil_water`, `number.soil_depth_mm`
 - `HANumber` for `ha_dim_target_percent`
 - `HANumber` for `ha_dim_duration_minutes`
 - `HAButton` for `sync_time`
@@ -812,7 +821,7 @@ Important:
 2. Main loop calls `clock.serviceAlarmFlags()`
 3. `alarmFired(1)` / `alarmFired(2)` determine which alarm fired
 4. Alarm flag is cleared
-5. Depending on the event, the corresponding Arduino dimming request is started
+5. Depending on the event, the Arduino dimming request is started with the persisted Alarm1/on or Alarm2/off target and the configured dim duration
 
 ### HA Light Operation
 1. If `lightAutoMode == OFF`, LightController accepts HA commands

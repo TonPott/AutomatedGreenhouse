@@ -15,6 +15,10 @@ SHTa sht;
 
 uint32_t lastPrintMs = 0;
 
+bool pinSupportsExternalInterrupt(uint8_t pin) {
+  return pin < PINS_COUNT && g_APinDescription[pin].ulExtInt != EXTERNAL_INT_NONE;
+}
+
 void onShtAlertInterrupt() {
   shtAlertPending = true;
 }
@@ -55,7 +59,7 @@ void setup() {
 
   pinMode(PIN_SHT_ALERT, INPUT_PULLUP);
   const int interruptId = digitalPinToInterrupt(PIN_SHT_ALERT);
-  if (interruptId >= 0) {
+  if (pinSupportsExternalInterrupt(PIN_SHT_ALERT)) {
     attachInterrupt(interruptId, onShtAlertInterrupt, FALLING);
   }
 

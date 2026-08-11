@@ -2,6 +2,14 @@
 
 #include "Config.h"
 
+namespace {
+
+bool pinSupportsExternalInterrupt(uint8_t pin) {
+  return pin < PINS_COUNT && g_APinDescription[pin].ulExtInt != EXTERNAL_INT_NONE;
+}
+
+}  // namespace
+
 FanController* FanController::instance_ = nullptr;
 
 void FanController::begin() {
@@ -12,7 +20,7 @@ void FanController::begin() {
 
   pinMode(PIN_FAN_TACH, INPUT);
   const int interruptId = digitalPinToInterrupt(PIN_FAN_TACH);
-  if (interruptId >= 0) {
+  if (pinSupportsExternalInterrupt(PIN_FAN_TACH)) {
     attachInterrupt(interruptId, tachISR, RISING);
   } else {
     Serial.println(F("Fan tach pin does not support interrupts."));

@@ -11,18 +11,29 @@ This file tracks open work, next steps, validation needs, and optional improveme
 
 ## Firmware Follow-Up
 
-- Check whether invalid `soil_moisture_percent` can be represented as truly unavailable in ArduinoHA.
-- Current fallback behavior: keep publishing raw values and avoid refreshing a misleading percent value if the percent calculation is invalid.
+- Optionally validate with a direct MQTT command that `soil_depth_mm=0` produces the retained canonical `unavailable` state for `soil_moisture_percent` while raw values continue to update. The normal HA UI intentionally permits only `20..120 mm`; this optional negative-path check does not block later tests.
 - Consider whether changing `soil_air`, `soil_water`, or `soil_depth_mm` from HA should trigger an immediate `sampleNow()` and state publish instead of waiting for the next interval or manual raw read.
-- Verify AD5263 readback/fault behavior on real hardware.
+- Validate the persistent Alarm1/Alarm2 target brightness values in the Arduino schedule system test and use its unrestricted `0..100 %` sweep to determine the real lamp's lower active and effective full-output bounds before adding production constraints.
 - Verify resume-state behavior after restart for manual mode, HA dim jobs, and Arduino auto mode.
 
 ## Hardware Validation
 
-- Validate AD5263 mapping and effective lower/upper resistance limits with the real lamp driver.
+### Nano 33 IoT Interrupt Pin Compatibility
+
+The interrupt assignments were checked against the actual `g_APinDescription` initializers in the Arduino SAMD core 1.8.14 Nano 33 IoT variant, not only against the SAMD21 multiplexer table. All active test-local SHT ALERT definitions now use the `A7` candidate for repeatable bench validation; production wiring and authoritative production pin documentation remain unchanged until that validation passes. Recheck the mappings after any Arduino SAMD core update.
+
+| Signal | Current pin and core mapping | Assessment and planned action |
+| --- | --- | --- |
+| SHT31 ALERT | Historical: `D7` / `PA06` / `EXTERNAL_INT_NONE`; rejected candidate: `A2` / `PA11` / `EXTERNAL_INT_NONE`; candidate: `A7` / `PB03` / `EXTINT3` | The SAMD21 can multiplex PA11 to EIC11, but the installed Nano 33 IoT core deliberately exposes A2 as `EXTERNAL_INT_NONE`, so standard `attachInterrupt()` silently rejects it. Corrective Tests 05 and 08 validate the actual core mapping, configure the SHT31 push-pull active-high output as `INPUT`, and register A7 with `attachInterrupt(digitalPinToInterrupt(A7), ..., RISING)`. Do not migrate production firmware or authoritative pin documentation until the A7 hardware run passes. |
+| DS3231 SQW/INT | `D10` / `PA21` / `EXTINT5` | Compatible. Keep the assignment and continue validating both RTC alarms on the existing hardware. |
+| Fan tachometer | `A1` / `PB02` / `EXTINT2` | Compatible. Stable RPM plus functional no-pulse fault and recovery behavior passed in Test 05. Keep the assignment; only the optional isolated tach-wire electrical-path check remains. Do not assign another active interrupt source to `EXTINT2`; `A0` shares that EIC channel in the core but is currently used only as an analog soil input. |
+| TSL25911 INT | `D9` / `PA20` / `EXTINT4` | Compatible and distinct from the RTC and fan channels. Keep it reserved and bench-test the interrupt behavior before enabling it in production firmware. |
+
+Before accepting the SHT ALERT pin migration, use Test 05 v1.1.4 to verify physical routing, 3.3 V push-pull active-high behavior, `irq_attached=true`, repeated rising-edge counts across separate alert assertions, and simultaneous RTC and fan-tach interrupts. Test 03 remains useful for SHT transaction stability but its older edge configuration is not physical-polarity acceptance evidence. Future TSL2591 interrupt coexistence still needs its own test. After successful hardware validation, update the production `Config.h`, schematic, `HARDWARE.md`, `SPEC.md`, and `MODULES.md` together. Avoid NINA/SPI pins as replacement candidates.
+
+- Validate the unrestricted AD5263 mapping and effective lower/upper resistance limits with the real lamp driver. Sweep the complete `0..100 %` command range in both directions, record the first reliably illuminated value and the first effective full-output value, and check for material turn-on/turn-off hysteresis or delayed response. Do not introduce a provisional minimum clamp; convert the measured results into compile-time installation bounds only after validation.
 - Validate SHDN behavior and relay sequencing.
-- Validate fan tach fault detection.
-- Validate soil moisture depth correction with real sensor placement.
+- Optionally isolate the conditioned fan-tach electrical path by disconnecting only the tach signal while the fan remains powered; functional command-on/no-pulses fault detection and recovery already passed when the complete fan connector was disconnected and restored.
 - Validate CQRTSL25911 placement, I2C address `0x29`, INT wiring on `PIN_LIGHT_SENSOR_INT`, and useful lux/raw ranges with lamp off and at representative dim levels.
 - Validate production WiFi reconnect after sketch upload or WiFiNINA module state transitions.
 - Validate production MQTT reconnect after broker outage while WiFi stays connected.
@@ -71,3 +82,7 @@ This file tracks open work, next steps, validation needs, and optional improveme
 - Soil entity names aligned to `soil_moisture_percent` and `soil_moisture_raw`.
 - Soil depth correction added to documentation and firmware.
 - AD5263 test sketch aligned with the corrected mapping.
+- Test 05 SHT high/low classification, manual/automatic fan control, stable RPM, and functional fan-fault recovery accepted on the installed system; the complete fan connector was used for fault injection and the deviation is documented.
+- Test 06 soil-moisture calibration accepted on 2026-07-28: valid values at multiple depths, `0..100 %` output, immediate button sampling followed by the 10-second interval, EEPROM-backed calibration, and WiFi recovery with local functions continuing. The unexecuted `0 mm` direct-MQTT negative path is documented as non-blocking.
+- Test 07 AD5263 safe-readback version `1.0.1` completed on 2026-07-29: complete indexed HA history, representative targets plus 66%, all controlled fault injections with recovery, OTA, WiFi outage/recovery, and the final unchanged soak passed.
+- Test 08 completed on 2026-07-30. Version `1.0.0` accepted safe relay/`SHDN` ordering, auto-mode rejection, immediate hard-power-off preemption, RTC neutrality, WiFi recovery, OTA safe state, and the extended soak. Version `1.0.1` corrected ArduinoHA's brightness scale, and the focused HA-history run confirmed commands and exact readbacks above the former apparent 39% ceiling through `100 %`.

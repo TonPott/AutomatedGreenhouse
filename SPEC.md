@@ -174,6 +174,19 @@ Functional direction at the lamp dimmer input:
 - minimal effective resistance / approximately `0 Ω` corresponds to `0 %`
 - maximal effective resistance / approximately `100 kΩ` corresponds to `100 %`
 
+The lamp's actual dark-to-active boundary and its effective full-output boundary are installation
+properties that have not yet been measured with the final driver and wiring. The nominal `5..100 %`
+range is only a reference and is not accepted as a firmware threshold.
+
+- `0 %` remains the canonical off target and requires the relay to be open.
+- System Test 09 passes the complete `0..100 %` command range to the current AD5263 mapping without a
+  minimum-active normalization so both physical boundaries can be characterized.
+- After that validation, any required lower/upper installation bounds are compile-time configuration,
+  not Home Assistant entities.
+- A later production constraint must be applied consistently to manual commands, HA dimming jobs,
+  Arduino alarm targets, resume state, and intermediate dimming steps, without weakening relay-based
+  hard power-off.
+
 Mandatory points:
 
 - `0 % = W2 0, W1 255`
@@ -210,9 +223,8 @@ When `light_auto_mode = ON`:
 
 - the internal Arduino schedule is active
 - triggers from the HA schedule are ignored
-- manual brightness adjustment is allowed, but only temporarily within the current time window
-- at the next Arduino schedule event, the value is overwritten again
-- the HA on/off switch for the light should have no effect in this mode or should be disabled
+- manual HA brightness and on/off commands are rejected and the canonical state is republished
+- no temporary HA brightness override is active in this control world
 
 #### Mode B: Arduino Auto Mode OFF
 When `light_auto_mode = OFF`:
@@ -300,7 +312,17 @@ The Arduino stores internally:
 
 - on / dim-on time
 - off / dim-off time
+- Alarm1 / on target brightness
+- Alarm2 / off target brightness
 - default dim duration
+
+The two target brightness values are persistent and exposed through Home Assistant:
+
+- `light_on_target_percent`, default `100 %`, used by Alarm1
+- `light_off_target_percent`, default `0 %`, used by Alarm2
+
+Both accept and republish the complete `0..100 %` range during the real-lamp characterization. Any
+production installation bounds are defined only after Test 09 has measured the dark and full-output boundaries.
 
 ### 7.2 Time Format
 Internal:
@@ -606,6 +628,8 @@ Type mapping in HA:
 - temperature thresholds
 - humidity thresholds
 - Arduino light schedule times
+- `light_on_target_percent`
+- `light_off_target_percent`
 - Arduino default dim duration
 - `soil_air`
 - `soil_water`
@@ -707,6 +731,8 @@ Already existing and **not** to be created a second time:
 - `fanAutoMode`
 - `lightOnTimeMinutes`
 - `lightOffTimeMinutes`
+- `lightOnTargetPercent`
+- `lightOffTargetPercent`
 - `defaultLightDimMinutes`
 - `lightFallbackMode`
 - additional sensor/soil/threshold values

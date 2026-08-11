@@ -100,6 +100,50 @@ Status: accepted
 - `sketches/alpha/Smaeenhouse/LightController.cpp`
 - `sketches/hardware-tests/08_AD5263Test/08_AD5263Test.ino`
 
+## 2026-07 – Characterize lamp bounds before constraining brightness and configure both RTC alarm targets
+
+Status: accepted
+
+### Context
+
+- The ViparSpectra P1000 documentation gives a nominal `5..100 %` range, but repository history only
+  establishes a legacy PWM-domain stable endpoint and off threshold; neither source proves the installed
+  AD5263 lamp boundary.
+- A provisional minimum would hide part of the range that must be measured on the final lamp and driver.
+- The dimmer does not replace a true mains-off mechanism.
+- Fixed `100 %` and `0 %` RTC-alarm targets unnecessarily restrict the autonomous schedule.
+
+### Decision
+
+- Keep `0 %` as the sole canonical off target and require the relay to open for that state.
+- Let System Test 09 pass the complete `0..100 %` range through the current AD5263 mapping without a
+  provisional minimum-active normalization.
+- Determine both the first reliably illuminated setting and the first effective full-output setting in
+  both sweep directions before accepting compile-time installation bounds.
+- Persist and expose separate `light_on_target_percent` and `light_off_target_percent` values for
+  Alarm1 and Alarm2, with defaults of `100 %` and `0 %`.
+
+### Consequences
+
+- Test 09 may deliberately command non-zero settings at which the powered lamp remains dark; finding that
+  interval is a test result, not a failure of the characterization sketch.
+- Later production bounds are firmware configuration rather than Home Assistant entities and must be
+  applied consistently across all light-control sources.
+- Alarm2 may deliberately target a non-zero night or transition level; its existing “off” name describes
+  the schedule slot and default, not a hard requirement that its target remain zero.
+- The schedule target values are durable configuration stored in the external RTC EEPROM.
+
+### Affected Areas
+
+- `SPEC.md`
+- `MODULES.md`
+- `HARDWARE.md`
+- `docs/entity-model.md`
+- `sketches/alpha/Smaeenhouse/Config.h`
+- `sketches/alpha/Smaeenhouse/PersistentConfig.*`
+- `sketches/alpha/Smaeenhouse/LightController.*`
+- the Arduino schedule system test
+
 ## 2026-05 – Project documentation is maintained in English
 
 Status: accepted

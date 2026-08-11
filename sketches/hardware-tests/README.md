@@ -26,6 +26,10 @@ Detailed documentation for a specific test belongs in that test folder's own `RE
 
 Credential and network requirements must be documented in each test folder's README when they apply.
 
+## Shared SHT Alert Pin
+
+All hardware-test `Config.h` copies use `PIN_SHT_ALERT = A7` (`PB03` / `EXTINT3`). A test that attaches the SHT ISR must first validate `g_APinDescription[PIN_SHT_ALERT].ulExtInt != EXTERNAL_INT_NONE`; the ISR may only set a flag.
+
 ## Compile Checks
 
 Run `scripts/setup-arduino` once per local machine before compile checks. Normal compile checks should not download, install, or update Arduino cores or libraries.

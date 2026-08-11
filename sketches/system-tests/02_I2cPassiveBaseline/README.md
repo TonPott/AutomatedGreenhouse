@@ -39,7 +39,7 @@ The safe output levels are set once during `setup()` before I2C, WiFi, OTA, or M
 
 | Signal | Pin | Test behavior |
 |---|---:|---|
-| SHT alert | `7` | `INPUT_PULLUP`, ISR sets a flag only |
+| SHT alert | `A7` (`PB03` / `EXTINT3`) | `INPUT_PULLUP`, ISR sets a flag only |
 | DS3231 SQW/INT | `10` | `INPUT_PULLUP`, ISR sets a flag only |
 | Fan switch | `2` | Output held off by setup state |
 | Fan tach | `A1` | `INPUT_PULLUP`, ISR counts pulses only |

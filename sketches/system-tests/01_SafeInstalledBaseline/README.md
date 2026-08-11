@@ -36,7 +36,7 @@ If the real relay or switch stage behaves differently, stop the test and record 
 
 | Signal | Pin | Test behavior |
 |---|---:|---|
-| SHT alert | `7` | `INPUT_PULLUP`, ISR sets a flag only |
+| SHT alert | `A7` (`PB03` / `EXTINT3`) | `INPUT_PULLUP`, ISR sets a flag only |
 | DS3231 SQW/INT | `10` | `INPUT_PULLUP`, ISR sets a flag only |
 | Fan switch | `2` | Output held off |
 | Fan tach | `A1` | `INPUT_PULLUP`, ISR counts pulses only |
