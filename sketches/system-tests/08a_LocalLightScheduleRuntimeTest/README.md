@@ -4,7 +4,11 @@ This interim installed-system test validates a local DS3231-driven light schedul
 MQTT, or Home Assistant is unavailable. It is deliberately a separate Home Assistant device and does not
 replace System Test 08 or System Test 09.
 
-Sketch identity: `08a_LocalLightScheduleRuntimeTest v1.0.1`
+Sketch identity: `08a_LocalLightScheduleRuntimeTest v1.0.2`
+
+Version 1.0.2 corrects retained-entity cleanup to use the configured Home Assistant discovery prefix and the
+ArduinoHA discovery/state topic layout. Cleanup remains limited to this test's own device ID and publishes at most
+one retained deletion per loop pass.
 
 ## Purpose
 
@@ -149,11 +153,11 @@ The repository check creates and removes a temporary credentials file only when 
 
 ## Installed-System Acceptance
 
-Because v1.0.0 can become unreachable under the real lamp load, install v1.0.1 with the lamp load temporarily
+Because v1.0.0 can become unreachable under the real lamp load, install v1.0.2 with the lamp load temporarily
 disconnected. After HA availability is established, enable persistent Hard Power Off before reconnecting the
 load.
 
-1. Confirm identity `v1.0.1`, reset cause, self-test pass, fan off, relay open, `SHDN` asserted, and the new
+1. Confirm identity `v1.0.2`, reset cause, self-test pass, fan off, relay open, `SHDN` asserted, and the new
    recovery diagnostics. Confirm that retained cleanup removes `test_step_index`.
 2. Release Hard Power Off and confirm valid RTC BCD/calendar data, verified alarm registers, and the due
    target. An impossible date/time must never be published as valid.
@@ -178,8 +182,8 @@ load.
 ## Results And Notes For The Next Test
 
 - Confirmation status: Reopened after the v1.0.0 alarm-trigger availability and OTA failure.
-- Date / firmware revision: `08a_LocalLightScheduleRuntimeTest v1.0.1` implemented 2026-08-11.
-- Required observations: all twelve v1.0.1 acceptance steps above.
+- Date / firmware revision: `08a_LocalLightScheduleRuntimeTest v1.0.2` implemented 2026-08-22.
+- Required observations: all twelve v1.0.2 acceptance steps above.
 - Anomalies or limitations: v1.0.0 became unavailable and published an impossible RTC value. Version 1.0.1 is the corrective build. Legal changes to EU DST rules require firmware maintenance; real transition-day
   behavior is represented initially by deterministic self-tests rather than waiting for a seasonal boundary.
 - Safety notes to carry forward: only `0 %` is canonical normal off; non-zero live ramps must not cycle relay or

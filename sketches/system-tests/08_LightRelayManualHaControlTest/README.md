@@ -1,12 +1,14 @@
 # Light Relay And Manual HA Control Test
 
+This maintenance revision also uses the shared retained-entity manifest for the `Grow Controller Tests` device. On connection it removes discovery for every known Test 02-09 entity not active in this sketch and clears orphaned states from the other known shared data prefix. Cleanup uses the existing ArduinoHA connection and publishes at most one retained deletion per loop pass.
+
 Sketch: `08_LightRelayManualHaControlTest.ino`
 
-Version: `1.0.3`
+Version: `1.0.4`
 
 ## Status
 
-The light-control acceptance remains complete. Version `1.0.3` is a corrective infrastructure revision and is **Reopened** only for focused SHT, EEPROM, A7, availability, and final-OTA confirmation. Previously accepted light-control points do not need to be repeated.
+The light-control acceptance remains complete. Version `1.0.4` is a corrective infrastructure revision and is **Reopened** only for focused SHT, EEPROM, A7, availability, and final-OTA confirmation. Previously accepted light-control points do not need to be repeated.
 
 ## Purpose
 
@@ -120,7 +122,7 @@ The seven Test 07 AD5263 history entities remain available. Their friendly names
 
 `binary_sensor.persistence_rtc_relay_safe` is presented as `Light Relay Open`, and `binary_sensor.persistence_rtc_shdn_safe` as `Light SHDN Asserted`. An `off` value is expected while the light is validly operating.
 
-`sensor.sketch_identity` publishes `08_LightRelayManualHaControlTest v1.0.3` once per MCU boot. Separate sketch-name and sketch-version entities are not created.
+`sensor.sketch_identity` publishes `08_LightRelayManualHaControlTest v1.0.4` once per MCU boot. Separate sketch-name and sketch-version entities are not created.
 
 ## HA Step History
 
@@ -188,12 +190,12 @@ The installed `1.0.0` run completed steps 3 through 6 and 8 through 14. They rem
 
 The focused `1.0.1` Home Assistant history run confirmed brightness commands above the former apparent `39 %` ceiling, exact requested/effective values and readbacks through the `100 %` endpoint, complete indexed safe action sequences, and no light fault. Test 08 is complete and Test 09 may begin.
 
-### Version 1.0.3 Focused Infrastructure Retest
+### Version 1.0.4 Focused Infrastructure Retest
 
-Version `1.0.3` carries the corrected Test 05 SHT command spacing, controlled limit-pause/restart behavior, verified EEPROM transactions, active-high A7 alert semantics, and single-MQTT-connection event reporting into Test 08.
+Version `1.0.4` carries the corrected Test 05 SHT command spacing, controlled limit-pause/restart behavior, verified EEPROM transactions, active-high A7 alert semantics, and single-MQTT-connection event reporting into Test 08.
 
 1. Compile Test 08 and verify the minimal SHT, RTC, and tach ISR bodies.
-2. Install by OTA. Require identity `08_LightRelayManualHaControlTest v1.0.3`, all 61 entities, the complete queued boot sequence, `SHT Fault=off`, `EEPROM Fault=off`, and the first SHT sample only after the regular two-second interval.
+2. Install by OTA. Require identity `08_LightRelayManualHaControlTest v1.0.4`, all 61 entities, the complete queued boot sequence, `SHT Fault=off`, `EEPROM Fault=off`, and the first SHT sample only after the regular two-second interval.
 3. Apply one valid SHT threshold change and restore the safe value. Require stop, write, readback, and restart steps, continued measurements, and no false SHT fault during the controlled pause.
 4. Toggle `Light Auto Mode` once and restore the intended value. Require EEPROM pre-read, write-or-skip, byte-identical verify, and no EEPROM fault. The already accepted light actuation sequence does not need to be repeated.
 5. If Test 05 has not already accepted the A7 path, produce one controlled alert assertion and require one active-high rising edge. Otherwise carry that hardware result forward.
@@ -207,13 +209,13 @@ After these focused checks pass, close the maintenance revision without repeatin
 - The sketch validates manual HA light control only. Arduino schedule actuation and dim jobs remain for later tests.
 - Manual brightness and hard-power state are volatile in this test; only `light_auto_mode` uses the inherited persistent record.
 - Digital readback still does not independently measure effective resistance at the driver terminals.
-- The accepted light-control result used the historical D7 SHT polling fallback. Version `1.0.3` uses the active-high `A7` / `EXTINT3` path; focused interrupt acceptance remains pending unless carried forward from Test 05.
+- The accepted light-control result used the historical D7 SHT polling fallback. Version `1.0.4` uses the active-high `A7` / `EXTINT3` path; focused interrupt acceptance remains pending unless carried forward from Test 05.
 - The installed `1.0.0` run recorded one OTA poll-gap violation shortly after startup; the counter did not increase during the subsequent extended soak. This remains a non-blocking startup observation and is not part of the scale-only retest.
 
 ## Results And Notes For The Next Test
 
-- Confirmation status: Light behavior complete; version `1.0.3` infrastructure correction reopened for the focused checks above.
-- Date / firmware revision: Version `1.0.0` installed run and version `1.0.1` focused brightness-scale confirmation accepted on 2026-07-30; corrective version `1.0.3` implemented on 2026-08-10.
+- Confirmation status: Light behavior complete; version `1.0.4` infrastructure correction reopened for the focused checks above.
+- Date / firmware revision: Version `1.0.0` installed run and version `1.0.1` focused brightness-scale confirmation accepted on 2026-07-30; corrective version `1.0.4` implemented on 2026-08-10.
 - Confirmed observations: Home Assistant recorded commanded and effective brightness values above `39 %` through `100 %`, with matching AD5263 readbacks, complete indexed safe sequences, and no light fault. All other installed Test 08 observations remain accepted from version `1.0.0`.
 - Anomalies or limitations: Version `1.0.0` omitted ArduinoHA's `100` brightness scale. HA therefore supplied `0..255` callback values, the test clamped values above `100`, and the HA entity appeared limited to approximately `39 %`. The AD5263 still reached and exactly read back its full target. Auto-mode activation intentionally retains the current light state until the next valid command or schedule event. One startup-only OTA gap was recorded without any later soak increase.
 - Safety notes to carry forward: Never close the relay before exact RDAC verification and `SHDN` release. Always open the relay before asserting `SHDN`. Hard power off must preempt in the safe direction in every mode.

@@ -1,12 +1,14 @@
 # SHT Alert Fan Closed-Loop Test
 
+This maintenance revision also uses the shared retained-entity manifest for the `Grow Controller Tests` device. On connection it removes discovery for every known Test 02-09 entity not active in this sketch and clears orphaned states from the other known shared data prefix. Cleanup uses the existing ArduinoHA connection and publishes at most one retained deletion per loop pass.
+
 This OTA-capable system test extends the completed persistence/RTC baseline with SHT31 alert evaluation, manual fan control, automatic high-alert fan demand, RPM monitoring, and fan-fault reporting. It intentionally leaves the grow-light relay open and the AD5263 dimmer in hardware shutdown.
 
-The test reuses the Home Assistant device identifier and data prefix from Test 04. Its 23 existing entities therefore keep their history, while 25 SHT, fan, identity, error-counter, test-step, and command-feedback entities are added. Version 1.1.4 uses only the ArduinoHA MQTT connection and removes retained topics left by the former direct diagnostics, separate identity entities, and Test-04-only diagnostic entities.
+The test reuses the Home Assistant device identifier and data prefix from Test 04. Its 23 existing entities therefore keep their history, while 25 SHT, fan, identity, error-counter, test-step, and command-feedback entities are added. Version 1.1.5 uses only the ArduinoHA MQTT connection and removes retained topics left by the former direct diagnostics, separate identity entities, and Test-04-only diagnostic entities.
 
 ## Status
 
-Test 05 remains **Reopened** until version `1.1.4` passes the focused hardware procedure below. The functional results accepted on 2026-07-21 remain valid: manual and automatic fan behavior, RPM, tach-fault recovery, low-alert neutrality, WiFi recovery, and RTC operation do not need to be repeated. This revision isolates A7 alert-edge validation with the fan held off and revalidates the corrected SHT and EEPROM transaction paths.
+Test 05 remains **Reopened** until version `1.1.5` passes the focused hardware procedure below. The functional results accepted on 2026-07-21 remain valid: manual and automatic fan behavior, RPM, tach-fault recovery, low-alert neutrality, WiFi recovery, and RTC operation do not need to be repeated. This revision isolates A7 alert-edge validation with the fan held off and revalidates the corrected SHT and EEPROM transaction paths.
 
 ## Purpose
 
@@ -79,7 +81,7 @@ For each temperature and humidity channel:
 - Manual fan control remains available after switching `fan_auto_mode` off.
 - A detected SHT reset bit causes all active limits to be written and verified again, followed by status clear and a fresh status read in the main loop.
 
-Version `1.1.4` enforces the transaction spacing validated by Test 03 through one central microsecond guard. Successive SHT commands are separated by at least `1 ms`, including measurement fetch followed by status read and the command/read phases of direct limit-register operations. Boot initialization is ordered as:
+Version `1.1.5` enforces the transaction spacing validated by Test 03 through one central microsecond guard. Successive SHT commands are separated by at least `1 ms`, including measurement fetch followed by status read and the command/read phases of direct limit-register operations. Boot initialization is ordered as:
 
 1. probe the configured address
 2. stop periodic acquisition
@@ -94,7 +96,7 @@ The first measurement is requested only after the normal two-second interval. A 
 
 Every valid runtime limit command stops periodic measurement, aborts at the first failed operation, and makes exactly one restart attempt after a successful stop. A failed bus transaction does not issue an immediate rollback series. The previous RAM configuration remains selected, automatic demand is forced off, and recovery reapplies it after a 30-second backoff.
 
-Version `1.1.4` validates the installed Nano 33 IoT pin descriptor before registering `attachInterrupt(digitalPinToInterrupt(A7), onShtAlert, RISING)`. `A7` maps to `PB03` / `EXTINT3`. The SHT31 ALERT output is push-pull and active high, so the pin uses `INPUT` without an internal pull-up. The ISR only sets a flag; SHT status, measurements, MQTT, and Home Assistant work remain in the loop.
+Version `1.1.5` validates the installed Nano 33 IoT pin descriptor before registering `attachInterrupt(digitalPinToInterrupt(A7), onShtAlert, RISING)`. `A7` maps to `PB03` / `EXTINT3`. The SHT31 ALERT output is push-pull and active high, so the pin uses `INPUT` without an internal pull-up. The ISR only sets a flag; SHT status, measurements, MQTT, and Home Assistant work remain in the loop.
 
 For this focused revision, keep `Fan Auto Mode=OFF` and `Fan=OFF` while producing two temperature-high alert cycles. The alert line, tracking bit, automatic-demand diagnostics, and A7 ISR counter must react, but the effective fan output must remain off. Each inactive-to-active transition must be counted as a separate rising edge.
 
@@ -150,7 +152,7 @@ The entity limit is `48`. The 23 Test 04 entities and their identifiers remain u
 - `number.hum_low_set`
 - `number.hum_low_clear`
 
-`Sketch Identity` publishes `05_ShtAlertFanClosedLoopTest v1.1.4` once per MCU boot. `Test Step` retains the existing `sensor.test_event` identifier and publishes each transition with a monotonically increasing sequence. Up to 24 steps are buffered while MQTT is unavailable, and at most one queued step is published per loop pass so OTA and local control continue to be serviced.
+`Sketch Identity` publishes `05_ShtAlertFanClosedLoopTest v1.1.5` once per MCU boot. `Test Step` retains the existing `sensor.test_event` identifier and publishes each transition with a monotonically increasing sequence. Up to 24 steps are buffered while MQTT is unavailable, and at most one queued step is published per loop pass so OTA and local control continue to be serviced.
 
 The 30-second HA refresh calls entity setters without forcing unchanged values. A new MQTT connection forces the complete numeric, binary, switch, and number state set once. The physical SHT alert-line entity is also updated on state changes from loop context. The SHT interrupt counter is published at the normal HA interval, and the static interrupt-attached state is published at boot/reconnect. No MQTT operation occurs in an ISR.
 
@@ -183,12 +185,12 @@ SKETCH=sketches/system-tests/05_ShtAlertFanClosedLoopTest ./scripts/check-arduin
 
 The compile script may create `Credentials.h` from the example only when none exists and must remove that temporary file afterward.
 
-## Focused v1.1.4 Acceptance Procedure
+## Focused v1.1.5 Acceptance Procedure
 
 Previously accepted manual fan, automatic fan, RPM, tach-fault, low-alert, WiFi-recovery, and RTC results do not need to be repeated.
 
 1. Compile with `SKETCH=sketches/system-tests/05_ShtAlertFanClosedLoopTest`; confirm credential cleanup and the minimal A7, RTC, and tach ISR bodies.
-2. Install by OTA. Require identity `05_ShtAlertFanClosedLoopTest v1.1.4`, the complete sequenced boot path, successful EEPROM read/write-or-skip/verify, `EEPROM Fault=off`, verified SHT limits, and the first SHT measurement only after the regular two-second interval.
+2. Install by OTA. Require identity `05_ShtAlertFanClosedLoopTest v1.1.5`, the complete sequenced boot path, successful EEPROM read/write-or-skip/verify, `EEPROM Fault=off`, verified SHT limits, and the first SHT measurement only after the regular two-second interval.
 3. With no active alert, switch `Fan Auto Mode` to `ON` and back to `OFF`. Both operations must report pre-read, write, and verify, increase sequence/write counters, produce no fault, and leave the effective fan output off.
 4. Keep `Fan Auto Mode=OFF` and `Fan=OFF`. Produce two temperature-high cycles. When lowering the pair, set `high_clear` before `high_set`; when raising it, set `high_set` before `high_clear`. Require the active-high alert line, temperature tracking bit, auto-demand steps, and A7 ISR count to react while the effective fan remains off. Both rising edges must be counted separately.
 5. Restore safe limits and run for at least 20 minutes, beyond the earlier approximately 770-second failure point. Reject SHT or EEPROM faults, CRC/command bits, unexplained availability loss, or unexplained OTA poll gaps.
@@ -206,14 +208,14 @@ Previously accepted manual fan, automatic fan, RPM, tach-fault, low-alert, WiFi-
 - The production `SHTa` API still reports channel tracking but does not distinguish high and low causes. This test-local evaluator validates the intended high-only behavior before any production API change is planned.
 - Threshold commands are intentionally volatile except for the previously stored Test 04 high values.
 - The fan tachometer has no fixed nominal RPM range yet.
-- The historical `D7` run could validate alert behavior only through loop polling. The `A7` / `EXTINT3` interrupt path remains pending until the focused v1.1.4 hardware run above passes.
+- The historical `D7` run could validate alert behavior only through loop polling. The `A7` / `EXTINT3` interrupt path remains pending until the focused v1.1.5 hardware run above passes.
 - The functional tach-fault test disconnected and restored the complete fan connector rather than only the conditioned tach line. This proves command-on/no-pulses fault detection and recovery after reconnection, but not the narrower rotating-fan/tach-wire-open electrical case.
 
 ## Results And Notes For The Next Test
 
-- Confirmation status: **Reopened** until the focused v1.1.4 SHT, EEPROM, A7, soak, and final-OTA procedure passes.
-- Date / firmware revision: Version `1.1.0` functional results accepted on 2026-07-21; corrective firmware `1.1.4` implemented on 2026-08-10.
+- Confirmation status: **Reopened** until the focused v1.1.5 SHT, EEPROM, A7, soak, and final-OTA procedure passes.
+- Date / firmware revision: Version `1.1.0` functional results accepted on 2026-07-21; corrective firmware `1.1.5` implemented on 2026-08-10.
 - Required observations: Manual `OFF -> ON -> OFF` control passed with auto mode disabled. Manual fan commands were rejected while auto mode was enabled. Temperature and humidity high-alert cycles produced and cleared automatic demand correctly; separate temperature/humidity low tracking remained fan-neutral. Threshold application/rejection feedback, temperature/humidity values, and SHT health were visible. RPM settled repeatedly near `804..809 rpm` after the documented first-window delay. During fault injection the output command remained on, RPM moved from approximately `807` through a partial-window `15` to `0`, `fan_fault` turned on, then RPM recovered through approximately `620` to `805` and the fault cleared automatically. Uptime remained monotonic.
 - Anomalies or limitations: The complete fan connector was unplugged and reconnected instead of disconnecting only the conditioned tach signal while leaving the fan powered. This is accepted as the functional fault/recovery result, but does not isolate the tach conditioning path. RPM changes are intentionally delayed by the 30-second measurement window. The A7 interrupt path still requires the focused bench confirmation above.
 - Safety notes to carry forward: Never block the fan. Preserve relay-open and AD5263-`SHDN` safe states. Keep both fan switches off during the A7 cycle check.
-- Entity or topic notes to carry forward: Preserve the Test 04 device identifier/data prefix and all 48 Test 05 entity IDs. Version `1.1.4` keeps the combined once-per-boot identity and clears obsolete retained discovery/state through the existing ArduinoHA MQTT connection.
+- Entity or topic notes to carry forward: Preserve the Test 04 device identifier/data prefix and all 48 Test 05 entity IDs. Version `1.1.5` keeps the combined once-per-boot identity and clears obsolete retained discovery/state through the existing ArduinoHA MQTT connection.

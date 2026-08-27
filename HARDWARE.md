@@ -98,6 +98,18 @@ mapping so the first reliably illuminated setting and the effective full-output 
 with the final driver and wiring. Any resulting lower/upper bounds remain compile-time installation
 configuration and are not Home Assistant settings.
 
+Installed-lamp diagnostic observations currently show a stable dark state at very small resistance or a true
+short, an approximate dark interval of 1..10 kOhm, effective full output commonly by approximately 80 kOhm,
+and full brightness for an open or approximately infinite dimming path. These are observations, not accepted
+firmware bounds; System Test 09 still owns the systematic two-direction boundary measurement.
+
+AD5263 shutdown opens terminal A while keeping W connected to B. In the installed two-channel series path this
+appears approximately as an open dimming input to the lamp and can therefore command full brightness. It is not
+electrically identical to unplugged dimming wires because internal switch paths, leakage, and protection
+structures remain. In the production architecture SHDN may only be treated as safe after the mains relay has
+opened. Diagnostic System Test 08b deliberately bypasses the relay contacts, keeps SHDN released, and uses only
+the verified minimum-resistance target for visible off; that exception is not a target architecture.
+
 The relay remains responsible for hard switching the 230 V supply. A `0 %` firmware target is therefore
 the canonical off state and must result in an open relay; the AD5263 resistance setting alone is not accepted
 as a mains-off mechanism.

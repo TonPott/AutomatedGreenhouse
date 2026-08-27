@@ -34,7 +34,7 @@
 namespace {
 
 constexpr char SKETCH_NAME[] = "08a_LocalLightScheduleRuntimeTest";
-constexpr char SKETCH_VERSION[] = "1.0.1";
+constexpr char SKETCH_VERSION[] = "1.0.2";
 constexpr char DEVICE_ID[] = "grow_controller_test_local_light_schedule";
 constexpr char DEVICE_NAME[] = "Local RTC Light Schedule Test";
 constexpr char MQTT_DATA_PREFIX[] = "smaeenhouse/test/local_light_schedule/ha";
@@ -923,14 +923,26 @@ void serviceHaTransmit(uint32_t nowMs) {
     }
     return;
   }
-  static const char* cleanupTopics[] = {
-      "homeassistant/sensor/grow_controller_test_local_light_schedule_test_step_index/config",
-      "homeassistant/sensor/grow_controller_test_local_light_schedule/test_step_index/config",
-      "smaeenhouse/test/local_light_schedule/ha/sensor/test_step_index/state",
-      "smaeenhouse/test/local_light_schedule/ha/test_step_index/state"};
-  if (retainedCleanupStage < 4) {
-    handlePublishResult(mqtt.publish(cleanupTopics[retainedCleanupStage], "", true));
-    retainedCleanupStage++;
+  if (retainedCleanupStage < 2) {
+    char topic[192];
+    if (retainedCleanupStage == 0) {
+      snprintf(topic,
+               sizeof(topic),
+               "%s/sensor/%s/test_step_index/config",
+               MQTT_PREFIX,
+               DEVICE_ID);
+    } else {
+      snprintf(topic,
+               sizeof(topic),
+               "%s/%s/test_step_index/stat_t",
+               MQTT_DATA_PREFIX,
+               DEVICE_ID);
+    }
+    const bool published = mqtt.publish(topic, "", true);
+    handlePublishResult(published);
+    if (published) {
+      retainedCleanupStage++;
+    }
   }
 }
 

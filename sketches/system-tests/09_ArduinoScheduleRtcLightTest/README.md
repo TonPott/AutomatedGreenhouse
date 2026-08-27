@@ -1,8 +1,10 @@
 # System Test 09: Arduino Schedule and RTC Light
 
+This maintenance revision also uses the shared retained-entity manifest for the `Grow Controller Tests` device. On connection it removes discovery for every known Test 02-09 entity not active in this sketch and clears orphaned states from the other known shared data prefix. Cleanup uses the existing ArduinoHA connection and publishes at most one retained deletion per loop pass.
+
 Status: ready for hardware validation
 
-Sketch version: `1.0.1`
+Sketch version: `1.0.2`
 
 ## Purpose
 
@@ -15,7 +17,7 @@ The sketch is derived only from the accepted
 network, OTA, EEPROM/RTC, SHT alert/fan, soil, Home Assistant, safe relay, `SHDN`, AD5263 readback, and fault
 behavior. Hardware-test sketches are not implementation sources.
 
-Version `1.0.1` uses SHT ALERT on `A7` (`PB03` / `EXTINT3`) and validates the active board core mapping before attaching the ISR. This pin-only correction does not invalidate the inherited Test 08 light-control result.
+Version `1.0.2` uses SHT ALERT on `A7` (`PB03` / `EXTINT3`) and validates the active board core mapping before attaching the ISR. This pin-only correction does not invalidate the inherited Test 08 light-control result.
 
 No real Home Assistant export or measurement history belongs in the repository.
 
@@ -120,8 +122,8 @@ must remove that temporary file after the check.
 
 ### 1. Installation and inherited state
 
-1. Compile and install version `1.0.1` by OTA.
-2. Confirm `Sketch Identity` reports `09_ArduinoScheduleRtcLightTest v1.0.1`.
+1. Compile and install version `1.0.2` by OTA.
+2. Confirm `Sketch Identity` reports `09_ArduinoScheduleRtcLightTest v1.0.2`.
 3. Confirm relay open and `SHDN` asserted during OTA/startup before any possible relay close.
 4. Confirm EEPROM checksum/readback, boot count, and sequence are valid and the version-1 record was migrated
    without losing the previously accepted configuration.

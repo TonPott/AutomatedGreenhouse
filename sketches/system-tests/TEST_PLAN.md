@@ -10,7 +10,7 @@ This plan defines the ordered system-test path from the completed OTA smoke test
 - After the OTA smoke, safe-output, I2C, and SHT hardware baselines, long-run system tests should publish a focused set of production-relevant Home Assistant entities through the `Grow Controller Tests` device so Home Assistant can retain useful history graphs during multi-day runs. Avoid a parallel diagnostic MQTT client or redundant direct status/event topics when sequenced Home Assistant history provides the required evidence.
 - Every sketch that touches actuators must put all connected peripherals into safe states during boot before network services start. Safe states include, at minimum: relay open, fan off, AD5263 shutdown or a documented safe dimmer setting, and no unintended I2C activity from ISRs. Outputs that are not part of the current test must not have entities, commands, callbacks, or local code paths that can change them after setup.
 - Test READMEs must include a `Results And Notes For The Next Test` section. That section records confirmation status, anomalies, safe operating limits, and carry-forward assumptions that the next sketch must respect.
-- Test sketches should publish production-equivalent HA entities when those values are useful for validating the feature under test or for long-run trend review. Remove obsolete retained discovery/state topics from earlier iterations when changing the HA entity set so Home Assistant does not show stale test entities. Other observations should remain under the separated `smaeenhouse/test/<test_id>/...` MQTT namespace.
+- Test sketches should publish production-equivalent HA entities when those values are useful for validating the feature under test or for long-run trend review. Every HA test removes known obsolete retained discovery and state topics through its existing ArduinoHA connection. Tests 02-09 keep the shared `Grow Controller Tests` manifest synchronized and delete at most one retained topic per loop pass; separate-device tests clean only their own device ID. Other observations remain under the separated `smaeenhouse/test/<test_id>/...` MQTT namespace.
 - Real measurement histories, HA exports, and raw cabinet datasets are sensitive. Keep captures in ignored local paths and document only summarized or anonymized results.
 - Every future system-test sketch defines a stable sketch name and explicit version. Publish them together only through `sensor.sketch_identity` with value `<sketch name> v<version>` once per MCU boot. Do not create separate sketch-name or sketch-version entities or a redundant direct `boot_identity` topic. Retry failed publications, do not duplicate successful identity publications on same-boot reconnects, and never publish from an ISR.
 - Installed-system acceptance must not depend on a direct USB Serial connection. Serial remains optional diagnostics. When a test needs a time series or multi-step result review, publish dedicated Home Assistant history entities immediately for every step; periodic summary intervals and MQTT Explorer output are not sufficient substitutes.
@@ -69,76 +69,57 @@ Exit criteria before creating the next sketch:
 - No actuator moves unexpectedly with the complete installed wiring connected.
 - The README records any inverted relay/fan behavior or pin-level surprise that later tests must account for.
 
-### 2. I2C Inventory And Passive Sensor Baseline - Complete
+### 2. I2C Inventory And Passive Sensor Baseline - Reopened
 
-Purpose: validate that all installed I2C devices can coexist on the bus while every actuator remains safe.
+Purpose: identify device-specific versus bus-wide I2C failures while every actuator remains safe.
 
-Required behavior:
+Revision `02_I2cPassiveBaseline v1.2.4` requirements:
 
-- Preserve the safe-state baseline; any actuator output not explicitly under test is initialized to its safe state in setup and then left without any command or code path that can change it.
-- Probe only documented project I2C addresses: SHT31, DS3231, AT24C32 at `0x57`, AD5263 at `0x2C`, and TSL25911 at `0x29`.
-- Do not scan arbitrary addresses as production behavior; any broad diagnostic scan must be documented as test-only.
-- Initialize passive sensors and publish or log temperature, humidity, RTC time/status, and light-sensor raw/lux values.
-- Keep AD5263 and relay in safe states; do not energize the lamp.
-- Publish production-relevant HA sensor/fault entities only for the sensors being validated. Early bring-up may use direct MQTT events, but installed long-run acceptance records required steps through Home Assistant.
+- Probe only the replacement SHT31 at `0x44`, DS3231 `0x68`, AT24C32 `0x57`, AD5263 `0x2C`, and TSL25911 `0x29`; do not initialize devices, access registers, clear interrupt sources, or electrically recover the bus.
+- Preserve the verified `v1.1.2` WiFi-to-ArduinoHA reinitialization behavior and use only the existing ArduinoHA/MQTT connection.
+- Enable the SAMD input buffers on SDA and SCL after `Wire.begin()` without replacing the pins' peripheral multiplexing. Sample both lines before each scan.
+- If either bus line is low, publish `bus_stuck`, increment its counter, mark every device unavailable and RTC/AD5263 as `not_probed`, skip every Wire call without increasing device error counters, and continue servicing HA and OTA.
+- Publish a unique scan/device/address `started` phase immediately before each probe and its Wire code/meaning immediately after return. Complete successful scans with the existing sequenced test step.
+- Publish the boot reset cause as read-only diagnostics, but do not arm a SAMD hardware watchdog in this passive revision.
+- Pass the standard `InternalStorage` object directly to ArduinoOTA. Do not wrap or modify the non-returning flash-copy path.
+- Block every I2C scan until MQTT has published the boot evidence; after that, retain the normal 30-second scan interval. Omit the unnecessary `WiFi.disconnect()` command before the first join.
+- Poll A7 and the RTC alarm line without attaching SHT, RTC, or tach ISRs.
 
-Exit criteria:
+Acceptance starts with a complete controller/I2C power-off before connecting the replacement sensor; hot-plugging is excluded. Require ten clean scans, then at least four hours with the lamp physically disconnected from mains, followed by a controlled WiFi outage and final OTA. The run requires complete probe histories, real high SDA/SCL readings, no new NACKs or bus-stuck scans, stable HA/OTA, and unchanged safe outputs. If a probe stops returning, preserve the last `started` phase; automatic reset recovery is not claimed by this passive revision.
 
-- Expected devices respond consistently with the installed harness.
-- Missing or unstable devices set or log the corresponding production fault concept: `sht_fault`, `rtc_fault`, `eeprom_fault`, `light_sensor_fault`, or `light_fault` for AD5263 reachability.
-- No I2C access happens inside ISRs.
-
-Confirmed result: accepted after the SHT address was corrected to the documented project address `0x45` and the follow-up SHT hardware baseline confirmed stable communication at that address. Carry forward that the original long I2C run exposed a WiFi-disconnect risk, while the later SHT run stayed online for more than 183,000 seconds with recovery counters published; a controlled outage/recovery test remains required before the network behavior is fully validated.
+Historical result: the original baseline remains documented as accepted with the former SHT31 at `0x45`. Revision `v1.1.1` exposed and `v1.1.2` corrected a WiFi-to-MQTT lifecycle defect. A later `v1.1.2` run stopped both HA and OTA between scans 82 and 83. Revision `v1.2.0` exposed early-boot NINA/watchdog ordering; `v1.2.1` restored boot but three OTA apply attempts ended in watchdog resets, and two `v1.2.2` attempts still ended in watchdog resets despite its pre-apply disable. Revision `v1.2.3` restored stable HA/OTA service, but its SHT-absent/lamp-disconnected run reached persistent SDA-low after 102 complete scans and then safely skipped 424 scans. Revision `v1.2.4` is **Reopened** for the replacement `0x44` sensor and corrected bus-stuck availability semantics. Suite-wide address propagation remains paused until this run succeeds; Test 03 then validates active SHT transactions before higher tests resume.
 
 ### 2a. SHT Hardware Baseline - Reopened
 
-Purpose: validate the installed SHT31 address, measurement path, alert-limit transactions, recovery behavior, and alert-pin monitoring before allowing SHT-driven fan behavior.
+Purpose: validate the installed SHT31 address, periodic measurement path, alert-limit transactions, recovery semantics, and active-high A7 monitoring before SHT behavior is reused by a fan test.
 
-Historical confirmed scope:
+Revision `03_ShtHardwareBaseline v1.2.1` requirements:
 
-- SHT31 responds at the fixed project address `0x45`; `0x44` does not respond on this hardware.
-- Temperature and humidity measurements remained plausible and updated through a long run.
-- Stored high/clear/low alert limits were readable and decoded.
-- The alert ISR remained minimal and only recorded whether the interrupt was observed.
-- Fan, relay, and AD5263 safe outputs remained unchanged.
+- Configure A7 as `INPUT` with `RISING`; the ISR only sets a flag.
+- Initialize through probe, Break, at least 1 ms guard, reset, idle status/limit capture, status clear, and periodic start.
+- Send only `Fetch Data` in periodic mode. Stop periodic measurement before status, limit, round-trip, or recovery commands, then make exactly one restart attempt.
+- Run unchanged byte-identical limit round trips only on request; do not perform periodic background limit reads or immediate rollback writes.
+- Publish operation-specific errors and decoded Sensirion codes. An isolated fetch error remains historical evidence without asserting the binary fault; three consecutive fetch errors or any failed initialization/stop/limit/readback/restart path assert it.
+- Clear the current fault only after complete verified recovery plus a valid measurement.
 
-Revision `1.1.0` focused revalidation:
+Acceptance requires five initial samples, three round trips at least 30 seconds apart, a 30-minute soak without unexplained NACKs/short reads, and final OTA. Historical stable `0x45` measurements and the isolated `268`/startup `527` errors remain recorded as motivation for the revision.
 
-- Replace direct test-topic evidence with one ArduinoHA connection, a combined sketch identity, and sequenced HA test steps.
-- Preserve the previously read raw alert limits while writing and reading back all four registers.
-- Abort a limit sequence at the first failed transaction and never issue an immediate full rollback series on an unhealthy bus.
-- Count measurement, status, limit, address-probe, consecutive, and recovery failures separately.
-- Require three successful unchanged-limit round trips, a 30-minute post-write soak, and OTA after the round trips.
+### 3. Persistence And RTC Alarm Configuration Test - Reopened
 
-Carry-forward rule: the next fan test must re-check the observed latched/status-register detail where the SHT alert summary bit was set while decoded RH/temperature alert bits were false and the alert line stayed high. Do not energize the fan automatically until thresholds are explicitly written or confirmed, alert-line behavior is understood, and tach feedback is validated.
+Purpose: isolate EEPROM transport, transfer, and record validity while retaining the accepted RTC alarm logic as a control channel.
 
-### 3. Persistence And RTC Alarm Configuration Test - Complete
+Revision `04_PersistenceRtcBaseline v1.2.1` requirements:
 
-Purpose: validate external EEPROM persistence, RTC time handling, and DS3231 alarm register programming without actuating the light.
+- Remove the unused SHT interrupt and keep RTC evaluation in the loop behind a flag-only ISR.
+- Publish separate transport, last-transfer, record-validity, recovery, and current-fault states with transaction phase, raw code, and sequenced test steps.
+- Use full pre-read, comparison, contiguous changed-range writes split at 32-byte page boundaries, checksum/validity data last, and a full byte-identical readback.
+- Initialize defaults only for a completely readable all-`0xFF` record. Never default-write after a transport/read failure or over a readable non-empty corrupt record.
+- Treat the first probe/read transport failure as `DEGRADED` and retry read-only after 10 seconds; confirm a transport fault on a second independent failure. Write/readback/corrupt-record failures fault immediately.
+- Preserve the last verified RAM state and reset HA commands to it after a failed write.
 
-Required behavior:
+Acceptance requires successful boot validation, an unchanged verify skip, at least five verified `fan_auto_mode` changes with range/byte evidence, 30 minutes without further writes, and final OTA persistence validation.
 
-- Preserve previous safe states and passive sensor behavior.
-- Read and write only through the AT24C32 persistence layer pattern intended for production.
-- Use a clearly documented test record layout and allow the test to overwrite that EEPROM area completely; there are no production-relevant EEPROM records that need preservation at this stage.
-- Write only changed values and record write counts or change decisions in test MQTT logs and HA diagnostic entities.
-- Validate representative persisted values: fan auto mode, light auto mode, fallback mode, light schedule minutes, default dim duration, SHT thresholds, and soil calibration values.
-- Program DS3231 Alarm1 and Alarm2 from persisted light schedule values, then verify alarm-fired handling through a minimal ISR flag plus main-loop evaluation.
-- Trigger or simulate schedule times without closing the relay or releasing an unsafe dimmer state.
-- Publish a focused Home Assistant entity set through the `Grow Controller Tests` device for long-run history: separate EEPROM read/write/verification status, EEPROM write/skip and runtime transaction counters, persisted sequence/checksum state, sequenced test steps, RTC time/lost-power status, Alarm1/Alarm2 configured/seen counters, network recovery counters, OTA gap count, and safe-output status.
-- Remove obsolete retained HA discovery and state topics for entities that are renamed or dropped by this test before accepting the run.
-
-Exit criteria:
-
-- Values survive reboot and OTA update.
-- Alarm flags are handled in the main loop, not in the ISR.
-- Alarm updates occur after boot, time sync, and configuration changes.
-- Home Assistant shows clean long-run histories for the selected `Grow Controller Tests` entities, with no stale retained entities from earlier test revisions.
-- README notes identify EEPROM write frequency and any RTC/alarm edge cases for the next light tests.
-
-Confirmed result: accepted on 2026-07-20 after an approximately 18-hour Home Assistant run. All 23 entities were present, both RTC alarms fired and were cleared from the main loop, EEPROM boot/sequence/checksum behavior survived an intentional OTA restart, and physical outputs stayed stable. A controlled WiFi outage increased the expected recovery counters without resetting MCU uptime; OTA remained available after recovery. Short HA `off` observations around restart and the local CEST RTC basis are documented as non-blocking observations in the test README.
-
-Focused revalidation `04_PersistenceRtcBaseline v1.1.0` was accepted on 2026-08-10. Runtime `OFF -> ON -> OFF` produced two verified EEPROM writes without actuating the fan, unchanged verification took the write-skip branch, and the final OTA restored `fan_auto_mode=OFF` while boot and sequence counters advanced. Read, write, verify, record shape, and checksum remained valid; `EEPROM Fault` stayed off and the combined identity replaced the retired separate entities. The skipped-write counter was not republished before the immediate OTA, but the sequenced branch and successful readback provide sufficient non-blocking evidence.
+Historical results from 2026-07-20 and the focused v1.1.0 acceptance on 2026-08-10 remain valid for their tested implementation. Revision `v1.2.1` is nevertheless **Reopened** because later combined tests repeatedly reported EEPROM faults while RTC and AD5263 stayed healthy.
 
 ### 4. SHT Alert And Fan Closed-Loop Test - Reopened
 
@@ -167,7 +148,7 @@ Exit criteria:
 
 Historical result: accepted on 2026-07-21 for the historical D7/polling hardware revision. Manual and automatic fan control, separate temperature/humidity high cycles, fan-neutral low tracking, threshold feedback, stable post-start RPM behavior, and functional tach-fault recovery passed. The broken fan explains the latest tach data and is not treated as firmware evidence. Accepted functional steps do not need repetition. Never block the fan.
 
-Corrective version `1.1.4` is implemented and remains **Reopened** pending hardware acceptance. It carries forward Test 03's spaced SHT stop/reset/idle-capture/write/readback/restart flow, Test 04's verified pre-read/update/readback EEPROM flow, delayed 30-second SHT recovery without immediate rollback, combined identity and retained-topic cleanup, and focused active-high A7 validation with both fan switches off. Acceptance requires two distinct A7 rising edges, verified fan-auto `ON -> OFF` persistence without actuation, a 20-minute run beyond the earlier failure point, and a final OTA.
+Corrective version `1.1.5` is implemented and remains **Reopened** pending hardware acceptance. It retains the previously implemented spaced SHT and byte-wise verified EEPROM flows, delayed 30-second SHT recovery, combined identity cleanup, and focused active-high A7 validation with both fan switches off. These are not the newly reopened Test 03 v1.2.1 and Test 04 v1.2.1 routines; Test 05 remains unchanged until those focused revisions pass. Its existing acceptance still requires two distinct A7 rising edges, verified fan-auto `ON -> OFF` persistence without actuation, a 20-minute run beyond the earlier failure point, and a final OTA.
 
 ### 5. Soil Moisture And Calibration Entity Test - Complete
 
@@ -249,7 +230,7 @@ changing or replacing Test 08 or Test 09.
 
 Sketch: `sketches/system-tests/08a_LocalLightScheduleRuntimeTest`
 
-Status: version `1.0.1` implemented and compile-verified; reopened for corrective installed-system validation.
+Status: version `1.0.2` implemented and compile-verified; reopened for corrective installed-system validation.
 
 Required behavior:
 
@@ -267,11 +248,40 @@ Required behavior:
 - pace application HA states/events, with explicit event sources and no redundant `test_step_index`.
 
 The v1.0.0 alarm-trigger run ended in complete HA and OTA unavailability and later exposed an impossible RTC
-value. Version 1.0.1 addresses that failure with checked RTC transactions, stuck-line detection, bus recovery,
-watchdog containment, manual recovery release, and paced HA publication.
+value. Version 1.0.1 addressed that failure with checked RTC transactions, stuck-line detection, bus recovery,
+watchdog containment, manual recovery release, and paced HA publication. Version 1.0.2 additionally corrects its
+retained-entity cleanup for configurable discovery prefixes and the current ArduinoHA topic layout.
 
 Exit criteria are maintained in the test-local README. Test 08a is an explicitly requested interim validation
 and does not change the entry gate or accepted results of the ordered Test 09 sequence.
+
+### 7b. Relay-Bypass Dimmer Diagnostic Test
+
+Purpose: isolate relay-contact mains switching from the AD5263 and firmware paths without changing the target
+architecture.
+
+Sketch: sketches/system-tests/08b_RelayBypassDimmerDiagnosticTest
+
+Status: version 1.0.0 implemented and compile-verified; supervised installed-system validation pending.
+
+Required behavior:
+
+- use a separate HA device and data prefix while retaining Test 08 SHT, fan, RPM, RTC, EEPROM, soil, network,
+  OTA, and combined sketch-identity behavior;
+- bypass only the relay contacts; keep the relay module connected and reproduce the Test 08 coil sequence;
+- preload D4 HIGH before OUTPUT mode and never assert SHDN in boot, normal, error, recovery, or OTA paths;
+- use only a byte-identical verified minimum-resistance RDAC target for visible off;
+- retain the last verified logical brightness on AD5263 errors, de-energize the coil, set light_fault, and never
+  claim mains-off or physical lamp-off;
+- publish relay-contact bypass, coil, SHDN, off-method, boot-verification latency, and complete indexed light
+  snapshots through Home Assistant; and
+- require supervised power sequencing and immediately available manual mains disconnection for warm reset and
+  OTA validation.
+
+A stable run shifts investigation toward relay-contact mains switching, inrush, or lamp-driver disturbance. A
+repeat failure with the contacts bypassed shifts investigation toward the relay coil, I2C/dimmer path, power
+integrity, or firmware. The test does not replace the mains relay and does not satisfy the System Test 09
+boundary characterization.
 
 ### 8. Arduino Schedule And RTC Alarm Light Test
 

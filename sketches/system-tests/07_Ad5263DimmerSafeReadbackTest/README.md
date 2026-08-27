@@ -2,11 +2,13 @@
 
 Sketch: `07_Ad5263DimmerSafeReadbackTest.ino`
 
-Version: `1.0.1`
+Version: `1.0.3`
 
 ## Status
 
 Complete. Version `1.0.0` exposed the installed AD5263 run but did not provide sufficient remote history resolution. Version `1.0.1` passed the functional HA-history run, intermediate `set:66`, all controlled fault injections with recovery, OTA, controlled WiFi outage/recovery, and the final soak without further state changes or anomalies.
+
+This maintenance revision also uses the shared retained-entity manifest for the `Grow Controller Tests` device. On connection it removes discovery for every known Test 02-09 entity not active in this sketch and clears orphaned states from the other known shared data prefix. Cleanup uses the existing ArduinoHA connection and publishes at most one retained deletion per loop pass.
 
 ## Purpose
 
@@ -80,7 +82,7 @@ The production-relevant fault reasons are:
 - `ad5263_write_failed`
 - `ad5263_readback_mismatch`
 
-An empty reason means no light fault. `sensor.sketch_identity` remains the single sketch identity entity and publishes `07_Ad5263DimmerSafeReadbackTest v1.0.2` once per MCU boot.
+An empty reason means no light fault. `sensor.sketch_identity` remains the single sketch identity entity and publishes `07_Ad5263DimmerSafeReadbackTest v1.0.3` once per MCU boot.
 
 The inherited `binary_sensor.persistence_rtc_shdn_safe` reports the electrical safe level. It may intentionally become `off` during the documented two-second, relay-open `SHDN` release; that observation is not itself a fault.
 

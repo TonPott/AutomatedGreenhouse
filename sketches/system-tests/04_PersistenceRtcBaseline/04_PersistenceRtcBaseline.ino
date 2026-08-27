@@ -7,11 +7,11 @@
 #include <ArduinoOTA.h>
 #include <InternalStorage.h>
 #include <ArduinoHA.h>
-#include <PubSubClient.h>
 #include <JC_EEPROM.h>
 #include <RTClib.h>
 
 #include "Credentials.h"
+#include "SystemTestHaCleanup.h"
 
 #ifndef WIFI_SSID
 #error "Credentials.h must define WIFI_SSID."
@@ -45,12 +45,11 @@ namespace {
 
 constexpr char TEST_ID[] = "persistence_rtc_baseline";
 constexpr char SKETCH_NAME[] = "04_PersistenceRtcBaseline";
-constexpr char SKETCH_VERSION[] = "1.1.0";
+constexpr char SKETCH_VERSION[] = "1.2.1";
 constexpr char DEVICE_ID[] = "grow_controller_tests_persistence_rtc";
 constexpr char DEVICE_NAME[] = "Grow Controller Tests";
 constexpr char MQTT_DATA_PREFIX[] = "smaeenhouse/test/persistence_rtc_baseline/ha";
 
-constexpr uint8_t PIN_SHT_ALERT = A7;
 constexpr uint8_t PIN_RTC_ALARM = 10;
 constexpr uint8_t PIN_FAN_SWITCH = 2;
 constexpr uint8_t PIN_FAN_TACH = A1;
@@ -79,8 +78,9 @@ constexpr uint8_t WIFI_TIMEOUTS_BEFORE_MODULE_RESET = 3;
 constexpr uint32_t OTA_MAX_POLL_GAP_MS = 2000UL;
 constexpr uint32_t HA_PUBLISH_INTERVAL_MS = 30000UL;
 constexpr uint32_t RTC_SERVICE_INTERVAL_MS = 1000UL;
+constexpr uint32_t EEPROM_RECOVERY_INTERVAL_MS = 10000UL;
 constexpr uint32_t STATUS_PRINT_INTERVAL_MS = 30000UL;
-constexpr uint16_t HA_ENTITY_LIMIT = 48;
+constexpr uint16_t HA_ENTITY_LIMIT = 56;
 constexpr uint8_t RETAINED_TOPIC_CLEANUP_COUNT = 6;
 constexpr uint8_t STEP_QUEUE_CAPACITY = 16;
 
@@ -95,13 +95,8 @@ const char* const RETAINED_TOPICS_TO_CLEAR[RETAINED_TOPIC_CLEANUP_COUNT] = {
   "smaeenhouse/test/persistence_rtc_baseline/result"
 };
 
-volatile bool shtAlertPending = false;
 volatile bool rtcAlarmPending = false;
 volatile uint32_t fanTachPulseCount = 0;
-
-void onShtAlert() {
-  shtAlertPending = true;
-}
 
 void onRtcAlarm() {
   rtcAlarmPending = true;
@@ -145,24 +140,42 @@ struct TestRecord {
 
 struct PersistenceState {
   bool present = false;
+  bool transportAvailable = false;
+  bool lastTransferOk = false;
   bool readOk = false;
   bool writeOk = false;
   bool verifyOk = false;
   bool magicOk = false;
   bool checksumOk = false;
+  bool recordValidNow = false;
+  bool recordCorrupt = false;
+  bool recoveryPending = false;
+  bool faultConfirmed = false;
+  bool hasVerifiedRecord = false;
   uint32_t reads = 0;
   uint32_t writes = 0;
   uint32_t skipped = 0;
+  uint32_t writeRanges = 0;
+  uint32_t writeBytes = 0;
+  uint32_t lastWriteRanges = 0;
+  uint32_t lastWriteBytes = 0;
   uint32_t runtimeAttempts = 0;
   uint32_t runtimeSuccesses = 0;
   uint32_t runtimeFailures = 0;
+  uint32_t recoveryAttempts = 0;
+  uint32_t recoveries = 0;
   uint32_t sequence = 0;
   uint32_t bootCount = 0;
+  uint32_t nextRecoveryMs = 0;
   uint16_t checksum = 0;
+  uint16_t consecutiveTransportFailures = 0;
   uint8_t lastError = 0;
   uint8_t lastReadError = 0;
   uint8_t lastWriteError = 0;
   uint8_t lastVerifyError = 0;
+  char transportStatus[40] = "STARTING";
+  char recordStatus[40] = "NOT_READ";
+  char lastErrorDetail[112] = "none";
 };
 
 struct PendingStep {
@@ -184,10 +197,10 @@ struct RtcState {
 };
 
 WiFiClient networkClient;
-WiFiClient cleanupNetworkClient;
-PubSubClient cleanupMqtt(cleanupNetworkClient);
 HADevice device(DEVICE_ID);
 HAMqtt mqtt(networkClient, device, HA_ENTITY_LIMIT);
+SystemTestHaCleanup::CleanupCursor retainedEntityCleanup(
+    SystemTestHaCleanup::TEST_04);
 JC_EEPROM eeprom(JC_EEPROM::kbits_32, 1, EEPROM_PAGE_SIZE, I2C_ADDRESS_AT24C32);
 RTC_DS3231 rtc;
 
@@ -205,6 +218,13 @@ HASensorNumber eepromChecksumSensor("persistence_rtc_eeprom_checksum");
 HASensorNumber persistenceAttemptsSensor("persistence_rtc_runtime_attempts");
 HASensorNumber persistenceSuccessesSensor("persistence_rtc_runtime_successes");
 HASensorNumber persistenceFailuresSensor("persistence_rtc_runtime_failures");
+HASensorNumber eepromWriteRangesSensor("persistence_rtc_eeprom_write_ranges");
+HASensorNumber eepromWriteBytesSensor("persistence_rtc_eeprom_write_bytes");
+HASensorNumber eepromLastWriteRangesSensor("persistence_rtc_eeprom_last_write_ranges");
+HASensorNumber eepromLastWriteBytesSensor("persistence_rtc_eeprom_last_write_bytes");
+HASensorNumber eepromConsecutiveFailuresSensor("persistence_rtc_eeprom_consecutive_failures");
+HASensorNumber eepromRecoveryAttemptsSensor("persistence_rtc_eeprom_recovery_attempts");
+HASensorNumber eepromRecoveriesSensor("persistence_rtc_eeprom_recoveries");
 HASensorNumber testStepIndexSensor("persistence_rtc_test_step_index");
 HASensorNumber rtcEpochSensor("persistence_rtc_epoch");
 HASensorNumber rtcAlarm1SeenSensor("persistence_rtc_alarm1_seen");
@@ -213,12 +233,19 @@ HASensorNumber rtcInterruptSeenSensor("persistence_rtc_alarm_isr_seen");
 HASensorNumber rtcAlarmClearsSensor("persistence_rtc_alarm_clears");
 HASensor sketchIdentitySensor("sketch_identity");
 HASensor persistenceResultSensor("persistence_rtc_result");
+HASensor eepromTransportStatusSensor("persistence_rtc_eeprom_transport_status");
+HASensor eepromRecordStatusSensor("persistence_rtc_eeprom_record_status");
+HASensor eepromLastErrorSensor("persistence_rtc_eeprom_last_error");
 HASensor testStepSensor("persistence_rtc_test_step");
 
 HABinarySensor eepromFaultSensor("eeprom_fault");
 HABinarySensor eepromReadOkSensor("persistence_rtc_eeprom_read_ok");
 HABinarySensor eepromWriteOkSensor("persistence_rtc_eeprom_write_ok");
 HABinarySensor eepromVerifyOkSensor("persistence_rtc_eeprom_verify_ok");
+HABinarySensor eepromAvailableSensor("persistence_rtc_eeprom_available");
+HABinarySensor eepromRecordValidSensor("persistence_rtc_eeprom_record_valid");
+HABinarySensor eepromRecoveryPendingSensor("persistence_rtc_eeprom_recovery_pending");
+HABinarySensor eepromLastTransferOkSensor("persistence_rtc_eeprom_last_transfer_ok");
 HABinarySensor rtcFaultSensor("rtc_fault");
 HABinarySensor rtcLostPowerSensor("persistence_rtc_lost_power");
 HABinarySensor alarm1ConfiguredSensor("persistence_rtc_alarm1_configured");
@@ -297,9 +324,13 @@ TestRecord makeDefaultRecord(uint32_t sequence, uint32_t bootCount) {
   return record;
 }
 
-bool probeI2cAddress(uint8_t address) {
+bool probeI2cAddress(uint8_t address, uint8_t* result = nullptr) {
   Wire.beginTransmission(address);
-  return Wire.endTransmission() == 0;
+  const uint8_t error = Wire.endTransmission();
+  if (result != nullptr) {
+    *result = error;
+  }
+  return error == 0;
 }
 
 void configurePinsForSafeState() {
@@ -312,7 +343,6 @@ void configurePinsForSafeState() {
   pinMode(PIN_LIGHT_DIM_SHDN, OUTPUT);
   digitalWrite(PIN_LIGHT_DIM_SHDN, LIGHT_DIM_SHDN_ASSERTED_LEVEL);
 
-  pinMode(PIN_SHT_ALERT, INPUT_PULLUP);
   pinMode(PIN_RTC_ALARM, INPUT_PULLUP);
   pinMode(PIN_FAN_TACH, INPUT_PULLUP);
   pinMode(PIN_SOIL_MOISTURE, INPUT);
@@ -365,52 +395,213 @@ bool recordValid(const TestRecord& record) {
   return recordShapeValid(record) && record.checksum == checksumRecord(record);
 }
 
+bool recordErased(const TestRecord& record) {
+  const uint8_t* bytes = reinterpret_cast<const uint8_t*>(&record);
+  for (size_t index = 0; index < sizeof(record); ++index) {
+    if (bytes[index] != 0xFFU) {
+      return false;
+    }
+  }
+  return true;
+}
+
+const char* eepromErrorDetail(uint8_t error) {
+  switch (error) {
+    case 0: return "OK";
+    case 1: return "DATA_TOO_LONG";
+    case 2: return "ADDRESS_NACK";
+    case 3: return "DATA_NACK";
+    case 4: return "OTHER";
+    case 5: return "TIMEOUT";
+    default: return "EEPROM_OR_ADDRESS_ERROR";
+  }
+}
+
+void setStatusText(char* destination, size_t length, const char* value) {
+  strncpy(destination, value, length - 1);
+  destination[length - 1] = '\0';
+}
+
+void setEepromFailure(const char* phase, uint8_t error, bool immediateFault) {
+  persistenceState.present = false;
+  persistenceState.transportAvailable = false;
+  persistenceState.lastTransferOk = false;
+  persistenceState.lastError = error;
+  if (persistenceState.consecutiveTransportFailures < UINT16_MAX) {
+    persistenceState.consecutiveTransportFailures++;
+  }
+  persistenceState.recoveryPending = true;
+  persistenceState.nextRecoveryMs = millis() + EEPROM_RECOVERY_INTERVAL_MS;
+  if (immediateFault || persistenceState.consecutiveTransportFailures >= 2U) {
+    persistenceState.faultConfirmed = true;
+    setStatusText(persistenceState.transportStatus,
+                  sizeof(persistenceState.transportStatus),
+                  "FAILED");
+  } else {
+    setStatusText(persistenceState.transportStatus,
+                  sizeof(persistenceState.transportStatus),
+                  "DEGRADED");
+  }
+  snprintf(persistenceState.lastErrorDetail,
+           sizeof(persistenceState.lastErrorDetail),
+           "phase=%s code=%u detail=%s",
+           phase,
+           error,
+           eepromErrorDetail(error));
+}
+
+void markEepromTransferSuccess() {
+  persistenceState.present = true;
+  persistenceState.transportAvailable = true;
+  persistenceState.lastTransferOk = true;
+  setStatusText(persistenceState.transportStatus,
+                sizeof(persistenceState.transportStatus),
+                "AVAILABLE");
+}
+
 void acceptVerifiedRecord(const TestRecord& record) {
   activeRecord = record;
   persistenceState.magicOk = true;
   persistenceState.checksumOk = true;
+  persistenceState.recordValidNow = true;
+  persistenceState.recordCorrupt = false;
   persistenceState.verifyOk = true;
+  persistenceState.hasVerifiedRecord = true;
   persistenceState.sequence = record.sequence;
   persistenceState.bootCount = record.bootCount;
   persistenceState.checksum = record.checksum;
+  setStatusText(persistenceState.recordStatus,
+                sizeof(persistenceState.recordStatus),
+                "VALID");
 }
 
-bool readRecord(TestRecord& record) {
+bool readRecord(TestRecord& record, const char* phase) {
   persistenceState.reads++;
-  const uint8_t result = eeprom.read(EEPROM_TEST_BASE, reinterpret_cast<uint8_t*>(&record), sizeof(record));
+  const uint8_t result =
+      eeprom.read(EEPROM_TEST_BASE, reinterpret_cast<uint8_t*>(&record), sizeof(record));
   if (result != 0) {
-    persistenceState.lastError = result;
     persistenceState.lastReadError = result;
     persistenceState.readOk = false;
+    persistenceState.recordValidNow = false;
+    setEepromFailure(phase, result, false);
     return false;
   }
   persistenceState.readOk = true;
   persistenceState.lastReadError = 0;
+  markEepromTransferSuccess();
   return true;
 }
 
-bool writeRecordBytes(const TestRecord& record) {
-  for (uint16_t index = 0; index < sizeof(record); ++index) {
-    const uint8_t value = reinterpret_cast<const uint8_t*>(&record)[index];
-    const uint8_t result = eeprom.update(EEPROM_TEST_BASE + index, value);
+bool writeChangedSegment(const uint8_t* currentBytes,
+                         const uint8_t* expectedBytes,
+                         uint16_t start,
+                         uint16_t end) {
+  uint16_t index = start;
+  while (index < end) {
+    while (index < end && currentBytes[index] == expectedBytes[index]) {
+      index++;
+    }
+    if (index >= end) {
+      break;
+    }
+
+    const uint16_t runStart = index;
+    const uint16_t pageEnd =
+        static_cast<uint16_t>(((runStart / EEPROM_PAGE_SIZE) + 1U) * EEPROM_PAGE_SIZE);
+    while (index < end && index < pageEnd &&
+           currentBytes[index] != expectedBytes[index]) {
+      index++;
+    }
+
+    const uint16_t length = index - runStart;
+    uint8_t* source = const_cast<uint8_t*>(expectedBytes + runStart);
+    const uint8_t result = eeprom.write(EEPROM_TEST_BASE + runStart, source, length);
     if (result != 0) {
-      persistenceState.lastError = result;
       persistenceState.lastWriteError = result;
       persistenceState.writeOk = false;
+      setEepromFailure("write_changed_range", result, true);
       return false;
     }
+    persistenceState.lastWriteRanges++;
+    persistenceState.lastWriteBytes += length;
+    persistenceState.writeRanges++;
+    persistenceState.writeBytes += length;
+  }
+  return true;
+}
+
+bool writeChangedRanges(const TestRecord& current, const TestRecord& expected) {
+  persistenceState.lastWriteRanges = 0;
+  persistenceState.lastWriteBytes = 0;
+  const uint8_t* currentBytes = reinterpret_cast<const uint8_t*>(&current);
+  const uint8_t* expectedBytes = reinterpret_cast<const uint8_t*>(&expected);
+  const uint16_t checksumStart = offsetof(TestRecord, checksum);
+  const uint16_t checksumEnd = checksumStart + sizeof(expected.checksum);
+
+  bool ok = writeChangedSegment(currentBytes, expectedBytes, 0, checksumStart);
+  if (ok && checksumEnd < sizeof(TestRecord)) {
+    ok = writeChangedSegment(currentBytes,
+                             expectedBytes,
+                             checksumEnd,
+                             sizeof(TestRecord));
+  }
+  if (ok) {
+    ok = writeChangedSegment(currentBytes,
+                             expectedBytes,
+                             checksumStart,
+                             checksumEnd);
+  }
+  if (!ok) {
+    return false;
   }
 
   persistenceState.writes++;
   persistenceState.writeOk = true;
   persistenceState.lastWriteError = 0;
+  markEepromTransferSuccess();
   return true;
 }
 
-bool persistAndVerify(const TestRecord& expected, const char* context) {
-  char step[64];
+void markRecordCorrupt(const char* phase) {
+  persistenceState.magicOk = false;
+  persistenceState.checksumOk = false;
+  persistenceState.recordValidNow = false;
+  persistenceState.recordCorrupt = true;
+  persistenceState.verifyOk = false;
+  persistenceState.faultConfirmed = true;
+  persistenceState.recoveryPending = false;
+  setStatusText(persistenceState.recordStatus,
+                sizeof(persistenceState.recordStatus),
+                "CORRUPT_NOT_OVERWRITTEN");
+  snprintf(persistenceState.lastErrorDetail,
+           sizeof(persistenceState.lastErrorDetail),
+           "phase=%s detail=record_shape_or_checksum_invalid",
+           phase);
+}
+
+void clearVerifiedPersistenceFault() {
+  persistenceState.faultConfirmed = false;
+  persistenceState.recordCorrupt = false;
+  persistenceState.recoveryPending = false;
+  persistenceState.consecutiveTransportFailures = 0;
+  setStatusText(persistenceState.transportStatus,
+                sizeof(persistenceState.transportStatus),
+                "AVAILABLE");
+  setStatusText(persistenceState.recordStatus,
+                sizeof(persistenceState.recordStatus),
+                "VALID");
+  strncpy(persistenceState.lastErrorDetail,
+          "none",
+          sizeof(persistenceState.lastErrorDetail) - 1);
+  persistenceState.lastErrorDetail[sizeof(persistenceState.lastErrorDetail) - 1] = '\0';
+}
+
+bool persistAndVerify(const TestRecord& expected,
+                      const char* context,
+                      bool allowCorruptRepair = false) {
+  char step[96];
   TestRecord current{};
-  if (!readRecord(current)) {
+  if (!readRecord(current, "pre_read")) {
     persistenceState.verifyOk = false;
     persistenceState.lastVerifyError = persistenceState.lastReadError;
     snprintf(step, sizeof(step), "%s_pre_read_failed", context);
@@ -421,14 +612,25 @@ bool persistAndVerify(const TestRecord& expected, const char* context) {
   snprintf(step, sizeof(step), "%s_pre_read_ok", context);
   recordTestStep(step);
 
+  const bool currentErased = recordErased(current);
+  if (!currentErased && !recordValid(current) && !allowCorruptRepair) {
+    markRecordCorrupt("pre_read");
+    snprintf(step, sizeof(step), "%s_corrupt_record_rejected", context);
+    recordTestStep(step);
+    setPersistenceResult(context, "corrupt record not overwritten", 1);
+    return false;
+  }
+
   if (memcmp(&current, &expected, sizeof(expected)) == 0) {
     persistenceState.skipped++;
     persistenceState.writeOk = true;
     persistenceState.lastWriteError = 0;
+    persistenceState.lastWriteRanges = 0;
+    persistenceState.lastWriteBytes = 0;
     snprintf(step, sizeof(step), "%s_write_skipped_unchanged", context);
     recordTestStep(step);
   } else {
-    if (!writeRecordBytes(expected)) {
+    if (!writeChangedRanges(current, expected)) {
       persistenceState.verifyOk = false;
       persistenceState.lastVerifyError = persistenceState.lastWriteError;
       snprintf(step, sizeof(step), "%s_write_failed", context);
@@ -436,14 +638,20 @@ bool persistAndVerify(const TestRecord& expected, const char* context) {
       setPersistenceResult(context, "write failed", persistenceState.lastWriteError);
       return false;
     }
-    snprintf(step, sizeof(step), "%s_write_ok", context);
+    snprintf(step,
+             sizeof(step),
+             "%s_write_ok_ranges=%lu_bytes=%lu",
+             context,
+             static_cast<unsigned long>(persistenceState.lastWriteRanges),
+             static_cast<unsigned long>(persistenceState.lastWriteBytes));
     recordTestStep(step);
   }
 
   TestRecord verified{};
-  if (!readRecord(verified)) {
+  if (!readRecord(verified, "verify_read")) {
     persistenceState.verifyOk = false;
     persistenceState.lastVerifyError = persistenceState.lastReadError;
+    persistenceState.faultConfirmed = true;
     snprintf(step, sizeof(step), "%s_verify_read_failed", context);
     recordTestStep(step);
     setPersistenceResult(context, "verify read failed", persistenceState.lastVerifyError);
@@ -452,10 +660,21 @@ bool persistAndVerify(const TestRecord& expected, const char* context) {
 
   persistenceState.magicOk = recordShapeValid(verified);
   persistenceState.checksumOk = recordValid(verified);
-  if (!persistenceState.checksumOk || memcmp(&verified, &expected, sizeof(expected)) != 0) {
+  persistenceState.recordValidNow = persistenceState.checksumOk;
+  if (!persistenceState.checksumOk ||
+      memcmp(&verified, &expected, sizeof(expected)) != 0) {
     persistenceState.verifyOk = false;
     persistenceState.lastVerifyError = 1;
     persistenceState.lastError = 1;
+    persistenceState.faultConfirmed = true;
+    persistenceState.recordCorrupt = !persistenceState.checksumOk;
+    setStatusText(persistenceState.recordStatus,
+                  sizeof(persistenceState.recordStatus),
+                  persistenceState.checksumOk ? "VALID_BUT_MISMATCHED" : "CORRUPT");
+    snprintf(persistenceState.lastErrorDetail,
+             sizeof(persistenceState.lastErrorDetail),
+             "phase=verify detail=%s",
+             persistenceState.checksumOk ? "byte_mismatch" : "checksum_or_shape");
     snprintf(step, sizeof(step), "%s_verify_mismatch", context);
     recordTestStep(step);
     setPersistenceResult(context, "verify mismatch", persistenceState.lastVerifyError);
@@ -465,6 +684,7 @@ bool persistAndVerify(const TestRecord& expected, const char* context) {
   persistenceState.lastError = 0;
   persistenceState.lastVerifyError = 0;
   acceptVerifiedRecord(verified);
+  clearVerifiedPersistenceFault();
   snprintf(step, sizeof(step), "%s_verify_ok", context);
   recordTestStep(step);
   setPersistenceResult(context, "verified");
@@ -472,18 +692,23 @@ bool persistAndVerify(const TestRecord& expected, const char* context) {
 }
 
 void initializePersistence() {
-  persistenceState.present = (eeprom.begin(JC_EEPROM::twiClock100kHz) == 0) && probeI2cAddress(I2C_ADDRESS_AT24C32);
-  if (!persistenceState.present) {
-    persistenceState.lastError = 1;
+  const uint8_t beginResult = eeprom.begin(JC_EEPROM::twiClock100kHz);
+  uint8_t probeResult = 0;
+  const bool probeOk =
+      beginResult == 0 && probeI2cAddress(I2C_ADDRESS_AT24C32, &probeResult);
+  if (!probeOk) {
+    const uint8_t error = beginResult != 0 ? beginResult : probeResult;
     activeRecord = makeDefaultRecord(1, 1);
+    setEepromFailure("boot_probe", error, false);
     recordTestStep("boot_eeprom_probe_failed");
-    setPersistenceResult("boot", "EEPROM probe failed", 1);
+    setPersistenceResult("boot", "EEPROM probe failed", error);
     return;
   }
+  markEepromTransferSuccess();
   recordTestStep("boot_eeprom_probe_ok");
 
   TestRecord stored{};
-  if (!readRecord(stored)) {
+  if (!readRecord(stored, "boot_read")) {
     activeRecord = makeDefaultRecord(1, 1);
     recordTestStep("boot_record_read_failed");
     setPersistenceResult("boot", "record read failed", persistenceState.lastReadError);
@@ -491,38 +716,49 @@ void initializePersistence() {
   }
 
   if (recordValid(stored)) {
-    activeRecord = stored;
-    activeRecord.sequence++;
-    activeRecord.bootCount++;
-    activeRecord.checksum = checksumRecord(activeRecord);
+    acceptVerifiedRecord(stored);
+    TestRecord updated = stored;
+    updated.sequence++;
+    updated.bootCount++;
+    updated.checksum = checksumRecord(updated);
     recordTestStep("boot_record_valid");
-  } else {
-    activeRecord = makeDefaultRecord(1, 1);
-    recordTestStep("boot_record_invalid_defaults_selected");
+    persistAndVerify(updated, "boot_record");
+    return;
   }
 
-  persistAndVerify(activeRecord, "boot_record");
+  if (recordErased(stored)) {
+    activeRecord = makeDefaultRecord(1, 1);
+    setStatusText(persistenceState.recordStatus,
+                  sizeof(persistenceState.recordStatus),
+                  "ERASED_INITIALIZING_DEFAULTS");
+    recordTestStep("boot_record_erased_defaults_selected");
+    persistAndVerify(activeRecord, "boot_record", true);
+    return;
+  }
+
+  activeRecord = makeDefaultRecord(1, 1);
+  markRecordCorrupt("boot_read");
+  recordTestStep("boot_record_corrupt_not_overwritten");
+  setPersistenceResult("boot", "corrupt record not overwritten", 1);
 }
 
-bool runRuntimePersistenceAttempt(const TestRecord& expected, const char* context) {
+bool runRuntimePersistenceAttempt(const TestRecord& expected,
+                                  const char* context,
+                                  bool allowCorruptRepair = false) {
   persistenceState.runtimeAttempts++;
   char step[64];
   snprintf(step, sizeof(step), "%s_requested", context);
   recordTestStep(step);
 
-  if (!persistenceState.present) {
-    persistenceState.readOk = false;
-    persistenceState.writeOk = false;
-    persistenceState.verifyOk = false;
-    persistenceState.lastError = 1;
+  if (!persistenceState.transportAvailable) {
     persistenceState.runtimeFailures++;
     snprintf(step, sizeof(step), "%s_failed_no_eeprom", context);
     recordTestStep(step);
-    setPersistenceResult(context, "EEPROM unavailable", 1);
+    setPersistenceResult(context, "EEPROM unavailable", persistenceState.lastError);
     return false;
   }
 
-  if (!persistAndVerify(expected, context)) {
+  if (!persistAndVerify(expected, context, allowCorruptRepair)) {
     persistenceState.runtimeFailures++;
     snprintf(step, sizeof(step), "%s_failed", context);
     recordTestStep(step);
@@ -549,17 +785,82 @@ void onFanAutoModeCommand(bool state, HASwitch*) {
 }
 
 void onVerifyPersistenceCommand(HAButton*) {
-  runRuntimePersistenceAttempt(activeRecord, "record_verify");
+  runRuntimePersistenceAttempt(activeRecord,
+                               "record_verify",
+                               persistenceState.hasVerifiedRecord);
   fanAutoModeSwitch.setState(activeRecord.fanAutoMode != 0U, true);
 }
 
+void serviceEepromRecovery(uint32_t nowMs) {
+  if (!persistenceState.recoveryPending ||
+      static_cast<int32_t>(nowMs - persistenceState.nextRecoveryMs) < 0) {
+    return;
+  }
+
+  persistenceState.recoveryAttempts++;
+  recordTestStep("eeprom_recovery_started");
+  const uint8_t beginResult = eeprom.begin(JC_EEPROM::twiClock100kHz);
+  uint8_t probeResult = 0;
+  if (beginResult != 0 ||
+      !probeI2cAddress(I2C_ADDRESS_AT24C32, &probeResult)) {
+    const uint8_t error = beginResult != 0 ? beginResult : probeResult;
+    setEepromFailure("recovery_probe", error, false);
+    recordTestStep("eeprom_recovery_probe_failed");
+    return;
+  }
+  markEepromTransferSuccess();
+
+  TestRecord stored{};
+  if (!readRecord(stored, "recovery_read")) {
+    recordTestStep("eeprom_recovery_read_failed");
+    return;
+  }
+  if (recordErased(stored)) {
+    persistenceState.magicOk = false;
+    persistenceState.checksumOk = false;
+    persistenceState.recordValidNow = false;
+    persistenceState.recordCorrupt = false;
+    persistenceState.verifyOk = false;
+    persistenceState.faultConfirmed = true;
+    persistenceState.recoveryPending = false;
+    setStatusText(persistenceState.recordStatus,
+                  sizeof(persistenceState.recordStatus),
+                  "ERASED_REQUIRES_INITIALIZATION");
+    snprintf(persistenceState.lastErrorDetail,
+             sizeof(persistenceState.lastErrorDetail),
+             "phase=recovery_read detail=record_erased");
+    recordTestStep("eeprom_recovery_record_erased");
+    return;
+  }
+  if (!recordValid(stored)) {
+    markRecordCorrupt("recovery_read");
+    recordTestStep("eeprom_recovery_record_corrupt");
+    return;
+  }
+
+  if (persistenceState.hasVerifiedRecord &&
+      memcmp(&stored, &activeRecord, sizeof(stored)) != 0) {
+    persistenceState.faultConfirmed = true;
+    persistenceState.recoveryPending = false;
+    setStatusText(persistenceState.recordStatus,
+                  sizeof(persistenceState.recordStatus),
+                  "VALID_BUT_MISMATCHED");
+    snprintf(persistenceState.lastErrorDetail,
+             sizeof(persistenceState.lastErrorDetail),
+             "phase=recovery_read detail=valid_record_differs_from_last_verified");
+    recordTestStep("eeprom_recovery_record_mismatch");
+    return;
+  }
+
+  acceptVerifiedRecord(stored);
+  clearVerifiedPersistenceFault();
+  persistenceState.recoveries++;
+  recordTestStep("eeprom_recovery_verified");
+  setPersistenceResult("recovery", "verified read-only");
+}
+
 bool eepromHasFault() {
-  return !(persistenceState.present &&
-      persistenceState.readOk &&
-      persistenceState.writeOk &&
-      persistenceState.verifyOk &&
-      persistenceState.magicOk &&
-      persistenceState.checksumOk);
+  return persistenceState.faultConfirmed || persistenceState.recordCorrupt;
 }
 
 void configureRtcAlarms() {
@@ -628,40 +929,34 @@ void serviceRtc(uint32_t nowMs) {
 }
 
 void clearKnownRetainedTopics() {
-  if (retainedTopicsCleared || WiFi.status() != WL_CONNECTED) {
-    return;
-  }
-
-  cleanupMqtt.setServer(MQTT_HOST, MQTT_PORT);
-  cleanupMqtt.setSocketTimeout(NETWORK_OPERATION_TIMEOUT_MS / 1000UL);
-  if (!cleanupMqtt.connect("persistence_rtc_cleanup", MQTT_USERNAME, MQTT_PASSWORD)) {
-    if (serialAvailable()) {
-      Serial.print(F("[MQTT] Retained-topic cleanup connect failed, state="));
-      Serial.println(cleanupMqtt.state());
-    }
+  if (retainedTopicsCleared || !mqtt.isConnected()) {
     return;
   }
 
   bool cleanupOk = true;
   for (uint8_t index = 0; index < RETAINED_TOPIC_CLEANUP_COUNT; ++index) {
-    cleanupOk = cleanupMqtt.publish(RETAINED_TOPICS_TO_CLEAR[index], "", true) && cleanupOk;
+    cleanupOk = mqtt.publish(RETAINED_TOPICS_TO_CLEAR[index], "", true) && cleanupOk;
   }
   for (uint8_t index = 0;
        index < sizeof(RETIRED_IDENTITY_ENTITY_IDS) / sizeof(RETIRED_IDENTITY_ENTITY_IDS[0]);
        ++index) {
     char topic[192];
-    snprintf(topic, sizeof(topic), "%s/sensor/%s/%s/config", MQTT_PREFIX, DEVICE_ID, RETIRED_IDENTITY_ENTITY_IDS[index]);
-    cleanupOk = cleanupMqtt.publish(topic, "", true) && cleanupOk;
-    snprintf(topic, sizeof(topic), "%s/%s/%s/stat_t", MQTT_DATA_PREFIX, DEVICE_ID, RETIRED_IDENTITY_ENTITY_IDS[index]);
-    cleanupOk = cleanupMqtt.publish(topic, "", true) && cleanupOk;
+    snprintf(topic,
+             sizeof(topic),
+             "%s/sensor/%s/%s/config",
+             MQTT_PREFIX,
+             DEVICE_ID,
+             RETIRED_IDENTITY_ENTITY_IDS[index]);
+    cleanupOk = mqtt.publish(topic, "", true) && cleanupOk;
+    snprintf(topic,
+             sizeof(topic),
+             "%s/%s/%s/stat_t",
+             MQTT_DATA_PREFIX,
+             DEVICE_ID,
+             RETIRED_IDENTITY_ENTITY_IDS[index]);
+    cleanupOk = mqtt.publish(topic, "", true) && cleanupOk;
   }
-  cleanupMqtt.disconnect();
-  cleanupNetworkClient.stop();
   retainedTopicsCleared = cleanupOk;
-
-  if (serialAvailable()) {
-    Serial.println(F("[MQTT] Cleared known retained direct-test topics from previous revisions."));
-  }
 }
 
 void configureHomeAssistant() {
@@ -706,10 +1001,24 @@ void configureHomeAssistant() {
   persistenceSuccessesSensor.setStateClass("total_increasing");
   persistenceFailuresSensor.setName("Persistence RTC Runtime Failures");
   persistenceFailuresSensor.setStateClass("total_increasing");
+  eepromWriteRangesSensor.setName("Persistence RTC EEPROM Write Ranges");
+  eepromWriteRangesSensor.setStateClass("total_increasing");
+  eepromWriteBytesSensor.setName("Persistence RTC EEPROM Write Bytes");
+  eepromWriteBytesSensor.setStateClass("total_increasing");
+  eepromLastWriteRangesSensor.setName("Persistence RTC EEPROM Last Write Ranges");
+  eepromLastWriteBytesSensor.setName("Persistence RTC EEPROM Last Write Bytes");
+  eepromConsecutiveFailuresSensor.setName("Persistence RTC EEPROM Consecutive Failures");
+  eepromRecoveryAttemptsSensor.setName("Persistence RTC EEPROM Recovery Attempts");
+  eepromRecoveryAttemptsSensor.setStateClass("total_increasing");
+  eepromRecoveriesSensor.setName("Persistence RTC EEPROM Recoveries");
+  eepromRecoveriesSensor.setStateClass("total_increasing");
   testStepIndexSensor.setName("Persistence RTC Test Step Index");
   testStepIndexSensor.setStateClass("total_increasing");
   sketchIdentitySensor.setName("Sketch Identity");
   persistenceResultSensor.setName("Persistence RTC Result");
+  eepromTransportStatusSensor.setName("Persistence RTC EEPROM Transport Status");
+  eepromRecordStatusSensor.setName("Persistence RTC EEPROM Record Status");
+  eepromLastErrorSensor.setName("Persistence RTC EEPROM Last Error");
   testStepSensor.setName("Persistence RTC Test Step");
 
   rtcEpochSensor.setName("Persistence RTC Epoch");
@@ -726,6 +1035,10 @@ void configureHomeAssistant() {
   eepromReadOkSensor.setName("Persistence RTC EEPROM Read OK");
   eepromWriteOkSensor.setName("Persistence RTC EEPROM Write OK");
   eepromVerifyOkSensor.setName("Persistence RTC EEPROM Verify OK");
+  eepromAvailableSensor.setName("Persistence RTC EEPROM Available");
+  eepromRecordValidSensor.setName("Persistence RTC EEPROM Record Valid");
+  eepromRecoveryPendingSensor.setName("Persistence RTC EEPROM Recovery Pending");
+  eepromLastTransferOkSensor.setName("Persistence RTC EEPROM Last Transfer OK");
   rtcFaultSensor.setName("RTC Fault");
   rtcLostPowerSensor.setName("Persistence RTC Lost Power");
   alarm1ConfiguredSensor.setName("Persistence RTC Alarm1 Configured");
@@ -798,10 +1111,22 @@ void publishHaState(uint32_t nowMs, bool force) {
   persistenceAttemptsSensor.setValue(static_cast<uint32_t>(persistenceState.runtimeAttempts), true);
   persistenceSuccessesSensor.setValue(static_cast<uint32_t>(persistenceState.runtimeSuccesses), true);
   persistenceFailuresSensor.setValue(static_cast<uint32_t>(persistenceState.runtimeFailures), true);
+  eepromWriteRangesSensor.setValue(static_cast<uint32_t>(persistenceState.writeRanges), true);
+  eepromWriteBytesSensor.setValue(static_cast<uint32_t>(persistenceState.writeBytes), true);
+  eepromLastWriteRangesSensor.setValue(static_cast<uint32_t>(persistenceState.lastWriteRanges), true);
+  eepromLastWriteBytesSensor.setValue(static_cast<uint32_t>(persistenceState.lastWriteBytes), true);
+  eepromConsecutiveFailuresSensor.setValue(
+      static_cast<uint32_t>(persistenceState.consecutiveTransportFailures), true);
+  eepromRecoveryAttemptsSensor.setValue(
+      static_cast<uint32_t>(persistenceState.recoveryAttempts), true);
+  eepromRecoveriesSensor.setValue(static_cast<uint32_t>(persistenceState.recoveries), true);
   if (pendingStepCount == 0) {
     testStepIndexSensor.setValue(static_cast<uint32_t>(testStepIndex), true);
   }
   persistenceResultSensor.setValue(persistenceResult);
+  eepromTransportStatusSensor.setValue(persistenceState.transportStatus);
+  eepromRecordStatusSensor.setValue(persistenceState.recordStatus);
+  eepromLastErrorSensor.setValue(persistenceState.lastErrorDetail);
 
   rtcEpochSensor.setValue(static_cast<uint32_t>(rtcState.present ? rtcState.now.unixtime() : 0UL), true);
   rtcAlarm1SeenSensor.setValue(static_cast<uint32_t>(rtcState.alarm1Seen), true);
@@ -813,6 +1138,10 @@ void publishHaState(uint32_t nowMs, bool force) {
   eepromReadOkSensor.setState(persistenceState.readOk, true);
   eepromWriteOkSensor.setState(persistenceState.writeOk, true);
   eepromVerifyOkSensor.setState(persistenceState.verifyOk, true);
+  eepromAvailableSensor.setState(persistenceState.transportAvailable, true);
+  eepromRecordValidSensor.setState(persistenceState.recordValidNow, true);
+  eepromRecoveryPendingSensor.setState(persistenceState.recoveryPending, true);
+  eepromLastTransferOkSensor.setState(persistenceState.lastTransferOk, true);
   rtcFaultSensor.setState(!(rtcState.present && rtcState.alarm1Configured && rtcState.alarm2Configured), true);
   rtcLostPowerSensor.setState(rtcState.lostPower, true);
   alarm1ConfiguredSensor.setState(rtcState.alarm1Configured, true);
@@ -854,7 +1183,6 @@ void onWifiConnected() {
     Serial.println(F(" dBm"));
   }
   beginOta();
-  clearKnownRetainedTopics();
   beginMqttOnce();
 }
 
@@ -966,12 +1294,15 @@ void serviceMqtt(uint32_t nowMs) {
     return;
   }
   mqtt.loop();
+  retainedEntityCleanup.service(
+      mqtt, MQTT_PREFIX, DEVICE_ID, MQTT_DATA_PREFIX);
   const bool mqttConnected = mqtt.isConnected();
   if (mqttConnected && !mqttWasConnected) {
     mqttWasConnected = true;
     if (serialAvailable()) {
       Serial.println(F("[MQTT] Connected."));
     }
+    clearKnownRetainedTopics();
     publishHaState(nowMs, true);
   } else if (!mqttConnected && mqttWasConnected) {
     mqttWasConnected = false;
@@ -980,6 +1311,7 @@ void serviceMqtt(uint32_t nowMs) {
       Serial.println(static_cast<int>(mqtt.getState()));
     }
   }
+  clearKnownRetainedTopics();
   publishHaState(nowMs, false);
   flushPendingSteps();
 }
@@ -1030,9 +1362,6 @@ void setup() {
   initializePersistence();
   initializeRtc();
 
-  if (pinSupportsExternalInterrupt(PIN_SHT_ALERT)) {
-    attachInterrupt(digitalPinToInterrupt(PIN_SHT_ALERT), onShtAlert, FALLING);
-  }
   if (pinSupportsExternalInterrupt(PIN_RTC_ALARM)) {
     attachInterrupt(digitalPinToInterrupt(PIN_RTC_ALARM), onRtcAlarm, FALLING);
   }
@@ -1055,6 +1384,7 @@ void setup() {
 void loop() {
   serviceOta();
   uint32_t nowMs = millis();
+  serviceEepromRecovery(nowMs);
   serviceRtc(nowMs);
   serviceWifi(nowMs);
   serviceOta();

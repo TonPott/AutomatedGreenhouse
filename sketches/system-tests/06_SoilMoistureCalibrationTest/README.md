@@ -2,11 +2,13 @@
 
 Sketch: `06_SoilMoistureCalibrationTest.ino`
 
-Version: `1.0.2`
+Version: `1.0.4`
 
 ## Status
 
 Complete on the installed system as of 2026-07-28, with the documented invalid-depth test deviation below.
+
+This maintenance revision also uses the shared retained-entity manifest for the `Grow Controller Tests` device. On connection it removes discovery for every known Test 02-09 entity not active in this sketch and clears orphaned states from the other known shared data prefix. Cleanup uses the existing ArduinoHA connection and publishes at most one retained deletion per loop pass.
 
 ## Purpose
 
@@ -86,7 +88,7 @@ The ArduinoHA entity capacity is `64`. Starting from the 43 Test 05 entities, Te
 
 `soil_air` and `soil_water` accept `0..1000` with step 1. The normal Home Assistant range for `soil_depth_mm` is `20..120 mm` with step 1. For the explicit invalid-depth acceptance test, a raw MQTT command of `0` may be sent to the already discovered `number.soil_depth_mm` command topic; the callback deliberately accepts `0..120`, and no separate test-only entity is added.
 
-`sensor.sketch_identity` is the only Home Assistant sketch-identity entity and publishes `06_SoilMoistureCalibrationTest v1.0.3` once per MCU boot. A failed publication is retried; a successful value is not duplicated after a same-boot MQTT reconnect. On its first diagnostic MQTT connection, Test 06 removes retained discovery and state topics for the retired `sensor.sketch_name` and `sensor.sketch_version` entities. All other relevant states are republished after reconnect.
+`sensor.sketch_identity` is the only Home Assistant sketch-identity entity and publishes `06_SoilMoistureCalibrationTest v1.0.4` once per MCU boot. A failed publication is retried; a successful value is not duplicated after a same-boot MQTT reconnect. On its first diagnostic MQTT connection, Test 06 removes retained discovery and state topics for the retired `sensor.sketch_name` and `sensor.sketch_version` entities. All other relevant states are republished after reconnect.
 
 ## Direct MQTT Diagnostics
 

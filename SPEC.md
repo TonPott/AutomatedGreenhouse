@@ -178,6 +178,11 @@ The lamp's actual dark-to-active boundary and its effective full-output boundary
 properties that have not yet been measured with the final driver and wiring. The nominal `5..100 %`
 range is only a reference and is not accepted as a firmware threshold.
 
+Current installed-lamp observations are: a stable dark result at very small resistance or a real short, an
+approximate dark interval of 1..10 kOhm, effective full brightness commonly by approximately 80 kOhm, and full
+brightness for an open or approximately infinite dimming path. These observations must not be used as a
+firmware clamp until the bidirectional System Test 09 measurement is complete.
+
 - `0 %` remains the canonical off target and requires the relay to be open.
 - System Test 09 passes the complete `0..100 %` command range to the current AD5263 mapping without a
   minimum-active normalization so both physical boundaries can be characterized.
@@ -259,6 +264,16 @@ It should:
 - an external `10 kΩ` pull-down to GND is mandatory on `SHDN`
 - because of this external pull-down, no internal pull-up is used for `SHDN`
 - the AD5263 should remain in shutdown by default during reset/boot
+
+AD5263 shutdown opens terminal A and retains the W-to-B connection. In the installed two-channel series path
+this approximates an open dimming input, which commands full lamp brightness; leakage, protection structures,
+and internal switch paths mean it is not identical to physically disconnected dimming wires. Therefore SHDN
+is a safe production state only after the mains relay is open.
+
+System Test 08b is an explicitly supervised diagnostic exception: its relay contacts are externally bypassed,
+SHDN remains released in boot, normal, fault, recovery, and OTA paths, and visible off means only a verified
+minimum-resistance RDAC target. It neither changes the mandatory production sequence nor provides mains
+isolation.
 
 ### 6.12 Startup And Shutdown Sequence
 

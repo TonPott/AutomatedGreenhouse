@@ -29,7 +29,7 @@ Production firmware must not be treated as OTA-capable merely because this direc
 
 ## Shared SHT Alert Pin
 
-All active system-test configurations use SHT ALERT on `A7` (`PB03` / `EXTINT3`). Corrective Tests 05 and 08 validate the actual Nano 33 IoT core descriptor, configure the SHT31 push-pull active-high signal as `INPUT`, and call `attachInterrupt(digitalPinToInterrupt(A7), ..., RISING)`. Test 03 retains its older edge configuration and is not used as physical-polarity acceptance evidence. Historical D7 polling results remain historical evidence; production pin documentation is updated only after the shared A7 hardware acceptance passes.
+All active system-test configurations use SHT ALERT on `A7` (`PB03` / `EXTINT3`). Test 03 v1.2.0 and the corrective Tests 05 and 08 validate the actual Nano 33 IoT core descriptor, configure the SHT31 push-pull active-high signal as `INPUT`, and call `attachInterrupt(digitalPinToInterrupt(A7), ..., RISING)`. Test 02 only polls the line because the passive baseline must not create or clear interrupt causes. Historical D7 polling results remain historical evidence; production pin documentation is updated only after the shared A7 hardware acceptance passes.
 
 ## Test Sequence Plan
 
@@ -43,14 +43,15 @@ Every OTA-capable system test keeps retrying WiFi indefinitely after link loss a
 
 * [`00_OtaSmokeTest`](00_OtaSmokeTest/) - completed OTA, WiFi, and MQTT uptime smoke baseline.
 * [`01_SafeInstalledBaseline`](01_SafeInstalledBaseline/) - safe installed-system baseline for connected actuator outputs and direct MQTT test status.
-* [`02_I2cPassiveBaseline`](02_I2cPassiveBaseline/) - known-address I2C inventory while preserving confirmed safe actuator states.
-* [`03_ShtHardwareBaseline`](03_ShtHardwareBaseline/) - reopened SHT transaction/recovery baseline with unchanged-limit write/readback cycles and sequenced HA evidence.
-* [`04_PersistenceRtcBaseline`](04_PersistenceRtcBaseline/) - completed persistence/RTC baseline; focused v1.1.0 runtime EEPROM revalidation accepted on 2026-08-10.
-* [`05_ShtAlertFanClosedLoopTest`](05_ShtAlertFanClosedLoopTest/) - corrective v1.1.4 implemented and reopened for focused SHT, EEPROM, active-high A7, soak, and OTA acceptance; historically accepted fan-control steps remain valid.
+* [`02_I2cPassiveBaseline`](02_I2cPassiveBaseline/) - reopened v1.2.4 passive baseline for the replacement SHT31 at `0x44`, with the standard ArduinoOTA storage path, real bus-level preflight, and non-stale bus-stuck diagnostics.
+* [`03_ShtHardwareBaseline`](03_ShtHardwareBaseline/) - reopened v1.2.1 SHT periodic/idle transaction-state baseline with active-high A7 validation.
+* [`04_PersistenceRtcBaseline`](04_PersistenceRtcBaseline/) - historical persistence/RTC results remain accepted; v1.2.1 is reopened for separated EEPROM transport, record, and recovery validation.
+* [`05_ShtAlertFanClosedLoopTest`](05_ShtAlertFanClosedLoopTest/) - corrective v1.1.5 implemented and reopened for focused SHT, EEPROM, active-high A7, soak, and OTA acceptance; historically accepted fan-control steps remain valid.
 * [`06_SoilMoistureCalibrationTest`](06_SoilMoistureCalibrationTest/) - completed soil raw/percent measurement, HA-controlled calibration, depth behavior, persistence, and reconnect validation; invalid `0 mm` remains an optional direct-MQTT negative test.
 * [`07_Ad5263DimmerSafeReadbackTest`](07_Ad5263DimmerSafeReadbackTest/) - completed AD5263/readback, injection/recovery, OTA, reconnect, and final-soak validation with the relay held open.
 * [`08_LightRelayManualHaControlTest`](08_LightRelayManualHaControlTest/) - light behavior complete; corrective v1.0.3 infrastructure revision reopened for focused SHT, EEPROM, A7, availability, and OTA confirmation.
 * [`08a_LocalLightScheduleRuntimeTest`](08a_LocalLightScheduleRuntimeTest/) - separate-device interim test for a persistent local RTC schedule, non-blocking NTP/DST handling, minute raw sensors, and network-independent light control.
+* [`08b_RelayBypassDimmerDiagnosticTest`](08b_RelayBypassDimmerDiagnosticTest/) - supervised separate-device diagnostic with bypassed relay contacts, continuously released SHDN, verified minimum-resistance dim-off, and retained Test 08 runtime coverage.
 * [`09_ArduinoScheduleRtcLightTest`](09_ArduinoScheduleRtcLightTest/) - ready for unrestricted real-lamp boundary characterization and persistent Alarm1/Alarm2 schedule-target validation.
 
 ## Required Per-Test Documentation
@@ -85,7 +86,9 @@ When a test needs a time series or a multi-step result, Home Assistant is the au
 
 For remote interaction, early bring-up tests may use direct MQTT test topics only. Longer system tests publish their required history through focused Home Assistant entities on the `Grow Controller Tests` device. Do not maintain a parallel diagnostic MQTT client or redundant status/event topics when the same evidence is available through Home Assistant.
 
-When a test changes its Home Assistant entity set, remove obsolete retained discovery and state topics from older test revisions so Home Assistant does not keep stale entities.
+Every Home Assistant system test must remove known obsolete retained discovery and state topics. Tests 02-09 intentionally reuse the `Grow Controller Tests` device and therefore use the identical sketch-local `SystemTestHaCleanup.h` manifest: entries not active for the running test lose their discovery configuration, and orphaned states are cleared from the other known shared data prefix. The cursor publishes at most one retained deletion per loop pass through the existing ArduinoHA connection. Arduino builds copy only the selected sketch directory, so the manifest is mirrored in each affected directory; all copies and test masks must be updated together whenever an entity is added, removed, or renamed. Tests with their own device ID maintain an equivalent test-local retired-topic list. Never delete discovery belonging to another device ID.
+
+The cleanup requirement applies on every test revision, not only when the current change happens to rename an entity.
 
 A system test must not require Home Assistant for OTA availability.
 

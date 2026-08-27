@@ -14,6 +14,7 @@
 
 #include "Config.h"
 #include "Credentials.h"
+#include "SystemTestHaCleanup.h"
 #include "FanController.h"
 #include "MoistureSensor.h"
 
@@ -49,7 +50,7 @@ namespace {
 
 constexpr char TEST_ID[] = "soil_moisture_calibration";
 constexpr char SKETCH_NAME[] = "06_SoilMoistureCalibrationTest";
-constexpr char SKETCH_VERSION[] = "1.0.3";
+constexpr char SKETCH_VERSION[] = "1.0.4";
 constexpr char DEVICE_ID[] = "grow_controller_tests_persistence_rtc";
 constexpr char DEVICE_NAME[] = "Grow Controller Tests";
 constexpr char MQTT_DATA_PREFIX[] = "smaeenhouse/test/persistence_rtc_baseline/ha";
@@ -252,6 +253,8 @@ WiFiClient diagnosticNetworkClient;
 PubSubClient diagnosticMqtt(diagnosticNetworkClient);
 HADevice device(DEVICE_ID);
 HAMqtt mqtt(networkClient, device, HA_ENTITY_LIMIT);
+SystemTestHaCleanup::CleanupCursor retainedEntityCleanup(
+    SystemTestHaCleanup::TEST_06);
 JC_EEPROM eeprom(JC_EEPROM::kbits_32, 1, EEPROM_PAGE_SIZE, I2C_ADDRESS_AT24C32);
 RTC_DS3231 rtc;
 SensirionI2cSht3x shtSensor;
@@ -1799,6 +1802,8 @@ void serviceMqtt(uint32_t nowMs) {
     return;
   }
   mqtt.loop();
+  retainedEntityCleanup.service(
+      mqtt, MQTT_PREFIX, DEVICE_ID, MQTT_DATA_PREFIX);
   const bool mqttConnected = mqtt.isConnected();
   if (mqttConnected && !mqttWasConnected) {
     mqttWasConnected = true;
